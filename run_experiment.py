@@ -1,11 +1,13 @@
 import os
 import sys
 import copy
+import torch
+import wandb
 import pytorch_lightning as pl
+import numpy as np
 
 from datasets import load_dataset
-from vae.model.vae import StandardVAE
-
+from vae.model import *
 
 # args
 from absl import app
@@ -17,13 +19,11 @@ config_flags.DEFINE_config_file("config", default="config.py:train")
 
 
 def model_name(args):
-    n = args.prior + '_' + args.arc_type + '_' + str(args.z_dim)
+    n = args.prior + '_' + args.model + '_' + str(args.z_dim)
     return n
 
 
 def cli_main(_):
-    pl.seed_everything(1234)
-
     if "absl.logging" in sys.modules:
         import absl.logging
 
@@ -31,11 +31,17 @@ def cli_main(_):
         absl.logging.set_stderrthreshold("info")
     args = FLAGS.config
     print(args)
+    # Set the seed
+    pl.seed_everything(1234+args.iter)
+    torch.manual_seed(1234+args.iter)
+    np.random.seed(1234+args.iter)
 
-    if args.prior in ['standard', 'realnvp']:
+    if args.model in ['conv']:
         vae = StandardVAE
+    elif args.model in ['vcd']:
+        vae = VCD_VAE
     else:
-        raise ValueError('Unknown prior type')
+        raise ValueError('Unknown model type')
 
     # ------------
     # data
@@ -55,10 +61,11 @@ def cli_main(_):
         mode='min',
         save_last=True,
     )
+    lr_monitor = pl.callbacks.LearningRateMonitor(logging_interval='epoch')
 
     early_stop = pl.callbacks.EarlyStopping(
         monitor='val_loss',
-        patience=args.lr_patience,
+        patience=int(args.lr_patience*1.5),
         verbose=True,
         mode='min',
         strict=False
@@ -67,26 +74,31 @@ def cli_main(_):
     # ------------
     # weight and bias + trainer
     # ------------
-    os.environ["WANDB_API_KEY"] = ' ' # WAND API KEY HERE
+    os.environ["WANDB_API_KEY"] = '5532aa3f6f581daa33de08ae6bccd7bbdf271c12'
+    if args.debug:
+        os.environ["WANDB_MODE"] = "dryrun"
     tags = [
         args.prior,
+        args.model,
         args.dataset_name
     ]
 
-    wandb_logger = pl.loggers.WandbLogger(project='adv_vae',
+    wandb_logger = pl.loggers.WandbLogger(project='vcd_vae',
                                           tags=tags,
                                           config=copy.deepcopy(dict(args)),
                                           log_model=True,
-                                          entity="", # USER NAME HERE
+                                          entity="akuzina",
                                           )
 
     trainer = pl.Trainer(gpus=args.gpus,
                          max_epochs=args.max_epochs,
-                         callbacks=[early_stop],
+                         callbacks=[early_stop, lr_monitor],
                          logger=wandb_logger,
                          checkpoint_callback=checkpnts  # in newer lightning this goes to callbaks as well
                          )
 
+    no_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    wandb_logger.experiment.summary["no_params"] = no_params
     trainer.fit(model, datamodule=data_module)
 
     # ------------

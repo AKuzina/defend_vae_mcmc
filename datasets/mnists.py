@@ -6,29 +6,30 @@ from torchvision import transforms
 from torchvision import datasets
 
 import pytorch_lightning as pl
+# fix mnist download problem (https://github.com/pytorch/vision/issues/1938)
+from six.moves import urllib
+opener = urllib.request.build_opener()
+opener.addheaders = [('User-agent', 'Mozilla/5.0')]
+urllib.request.install_opener(opener)
 
 
-class ReshapeTransform:
-    def __init__(self, new_size):
-        self.new_size = new_size
+class Binarize(object):
+    def __call__(self, x):
+        return torch.bernoulli(x)
 
-    def __call__(self, img):
-        return torch.reshape(img, self.new_size)
+    def __repr__(self):
+        return self.__class__.__name__ + '()'
 
 
 class MNIST(pl.LightningDataModule):
     def __init__(self, args):
         super().__init__()
         self.root = './datasets'
-        if args.arc_type == 'mlp':
-            self.transforms = transforms.Compose([
-                transforms.ToTensor(),
-                ReshapeTransform((-1,))
-            ])
-        else:
-            self.transforms = transforms.Compose([
-                transforms.ToTensor(),
-            ])
+
+        self.transforms = transforms.Compose([
+            transforms.ToTensor(),
+            Binarize()
+        ])
         self.dims = (1, 28, 28)
         self.batch_size = args.batch_size
         self.test_batch_size = args.test_batch_size
@@ -43,16 +44,16 @@ class MNIST(pl.LightningDataModule):
             self.train, self.val = random_split(mnist_full, [55000, 5000])
 
         if stage == 'test' or stage is None:
-            self.test =  datasets.MNIST(self.root, train=False, transform=self.transforms)
+            self.test = datasets.MNIST(self.root, train=False, transform=self.transforms)
 
     def train_dataloader(self):
-        return DataLoader(self.train, self.batch_size, num_workers=6)
+        return DataLoader(self.train, self.batch_size, num_workers=6, shuffle=True)
 
     def val_dataloader(self):
-        return DataLoader(self.val, self.batch_size, num_workers=6)
+        return DataLoader(self.val, self.test_batch_size, num_workers=6, shuffle=False)
 
     def test_dataloader(self):
-        return DataLoader(self.test, self.test_batch_size, num_workers=6)
+        return DataLoader(self.test, self.test_batch_size, num_workers=6, shuffle=False)
 
 
 class FashionMNIST(MNIST):
@@ -74,13 +75,13 @@ class FashionMNIST(MNIST):
                                               transform=self.transforms)
 
     def train_dataloader(self):
-        return DataLoader(self.train, self.batch_size, num_workers=6)
+        return DataLoader(self.train, self.batch_size, num_workers=6, shuffle=True)
 
     def val_dataloader(self):
-        return DataLoader(self.val, self.batch_size, num_workers=6)
+        return DataLoader(self.val, self.test_batch_size, num_workers=6, shuffle=False)
 
     def test_dataloader(self):
-        return DataLoader(self.test, self.test_batch_size, num_workers=6)
+        return DataLoader(self.test, self.test_batch_size, num_workers=6, shuffle=False)
 
 
 

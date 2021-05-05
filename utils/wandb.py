@@ -5,8 +5,8 @@ from ml_collections import ConfigDict
 from vae.model.vae import StandardVAE
 from datasets import load_dataset
 
-USER = ''# wandb user name (will be used to download pre-train models)
-PROJECT = 'adv_vae'
+USER = 'akuzina'# wandb user name (will be used to download pre-train models)
+PROJECT = 'vdc_vae'
 api = wandb.Api()
 
 

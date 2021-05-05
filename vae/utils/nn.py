@@ -2,6 +2,22 @@ import torch
 import torch.nn as nn
 
 
+class ConvBlock(nn.Module):
+    def __init__(self, in_ch, out_ch, kernel_size, stride=1, padding=0, dilation=1,
+                 act=nn.ReLU, weight_norm=False):
+        super(ConvBlock, self).__init__()
+        self.conv = nn.Conv2d(in_ch, out_ch, kernel_size, stride, padding, dilation)
+        self.activation = act
+        if weight_norm:
+            self.conv = nn.utils.weight_norm(self.conv)
+
+    def forward(self, x):
+        out = self.conv(x)
+        if self.activation is not None:
+            out = self.activation(out)
+        return out
+
+
 class AffineCoupling1d(nn.Module):
     def __init__(self, dim, hid_dim, mode=1.):
         """
