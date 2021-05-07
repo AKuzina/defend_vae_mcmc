@@ -24,6 +24,7 @@ class EncoderMnist(nn.Module):
         )
         self.q_z_logvar = nn.Sequential(
             ConvBlock(ch[3], ch[4], 5, stride=1, padding=2, act=None, weight_norm=wn),  #8->8
+            # nn.Hardtanh(-10, 1),
             nn.Flatten()
         )
         self.init()
@@ -79,7 +80,7 @@ def get_architecture(args):
     params_dec = {'z_dim': args.z_dim, 'in_ch': args.num_ch}
 
     if 'mnist' in args.dataset_name:
-        if args.model == 'conv':
+        if args.model in ['conv', 'vcd']:
             enc = EncoderMnist
             dec = DecoderMnist
         else:

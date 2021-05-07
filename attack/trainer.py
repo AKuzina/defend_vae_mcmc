@@ -42,7 +42,7 @@ def train_fn(model, x_ref, args, x_trg=None):
         trg_recon = trg_recon.reshape(x_trg.shape).detach()
     else:
         trg_recon = None
-
+    # loop over reference images
     for step, xi in enumerate(x_ref):
         xi = xi.unsqueeze(0)
         x_hist = [xi]

@@ -27,7 +27,7 @@ class NormalQ(VariationalPosterior):
             'Mean and point have different shapes: ' + str(z.shape) + ' ' + str(mu.shape)
         assert z.shape == logvar.shape, \
             'Variance and point have different shapes: ' + str(z.shape) + ' ' + str(logvar.shape)
-        assert len(z.shape) == 1, 'Expect 2d point, got ' + str(z.shape) + ' instead'
+        assert len(z.shape) == 2, 'Expect 2d point, got ' + str(z.shape) + ' instead'
         return log_Gaus_diag(z, mu, logvar, dim=1)
 
     def sample_n(self, mu, logvar):
