@@ -28,16 +28,16 @@ class AffineCoupling1d(nn.Module):
         self.mask = torch.arange(mode, mode + dim).unsqueeze(0) % 2
         self.s = nn.Sequential(
             nn.Linear(dim, hid_dim),
-            nn.LeakyReLU(),
-            nn.Linear(hid_dim, hid_dim),
+            # nn.LeakyReLU(),
+            # nn.Linear(hid_dim, hid_dim),
             nn.LeakyReLU(),
             nn.Linear(hid_dim, dim),
             nn.Tanh()
         )
         self.t = nn.Sequential(
             nn.Linear(dim, hid_dim),
-            nn.LeakyReLU(),
-            nn.Linear(hid_dim, hid_dim),
+            # nn.LeakyReLU(),
+            # nn.Linear(hid_dim, hid_dim),
             nn.LeakyReLU(),
             nn.Linear(hid_dim, dim)
         )

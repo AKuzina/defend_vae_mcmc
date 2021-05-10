@@ -4,27 +4,29 @@ from vae.utils.nn import ConvBlock
 
 
 class EncoderMnist(nn.Module):
-    def __init__(self, z_dim, in_ch, **kwargs):
+    def __init__(self, z_dim, in_ch, long=False, **kwargs):
         super(EncoderMnist, self).__init__()
 
         wn = False
         act = nn.ReLU()
-        ch = [in_ch, in_ch, in_ch*2, in_ch*4, z_dim//64]
+        ch = [in_ch, in_ch*2, in_ch*4, z_dim//4]
+        conv_arg = {'kernel_size': 3, 'stride': 2, 'padding': 1}
+        if long:
+            ch = [in_ch, in_ch*2, in_ch*2, z_dim]
+            conv_arg = {'kernel_size': 4, 'stride': 1, 'padding': 0}
 
         self.q_z_layers = nn.Sequential(
-            ConvBlock(1, ch[0], 3, stride=1, padding=0, act=act, weight_norm=wn),  # 28->26
-            ConvBlock(ch[0], ch[1], 3, stride=2, padding=0, act=act, weight_norm=wn),  #26->12
-            ConvBlock(ch[1], ch[2], 5, stride=1, padding=0, act=act, weight_norm=wn),  #12->8
-            ConvBlock(ch[2], ch[3], 3, stride=1, padding=1, act=act, weight_norm=wn),  #8->8
+            ConvBlock(1, ch[0], 3, stride=2, padding=1, act=act, weight_norm=wn),  # 28->14
+            ConvBlock(ch[0], ch[1], 3, stride=2, padding=1, act=act, weight_norm=wn),  #14->7
+            ConvBlock(ch[1], ch[2], 3, stride=2, padding=1, act=act, weight_norm=wn),  #7->4
         )
 
         self.q_z_mean = nn.Sequential(
-            ConvBlock(ch[3], ch[4], 5, stride=1, padding=2, act=None, weight_norm=wn),  #8->8
+            ConvBlock(ch[2], ch[3], act=None, weight_norm=wn,  **conv_arg),  #4->2/1
             nn.Flatten()
         )
         self.q_z_logvar = nn.Sequential(
-            ConvBlock(ch[3], ch[4], 5, stride=1, padding=2, act=None, weight_norm=wn),  #8->8
-            # nn.Hardtanh(-10, 1),
+            ConvBlock(ch[2], ch[3], act=None, weight_norm=wn,  **conv_arg),  #4->2/1
             nn.Flatten()
         )
         self.init()
@@ -45,16 +47,23 @@ class EncoderMnist(nn.Module):
 
 
 class DecoderMnist(nn.Module):
-    def __init__(self, z_dim, in_ch, **kwargs):
+    def __init__(self, z_dim, in_ch, long=False, **kwargs):
         super(DecoderMnist, self).__init__()
 
-        self.chnl = [z_dim//64, in_ch*4, in_ch*2, in_ch]
+        self.chnl = [z_dim//4, in_ch*4, in_ch*2, in_ch]
+        conv_arg = {'kernel_size': 3, 'stride': 2, 'padding': 0}
+        self.z_shape = 2
+        if long:
+            self.chnl = [z_dim, in_ch*2, in_ch*2, in_ch]
+            conv_arg = {'kernel_size': 3, 'stride': 1, 'padding': 0, 'dilation':2}
+            self.z_shape = 1
+
         self.p_x_layers = nn.Sequential(
-            nn.ConvTranspose2d(self.chnl[0], self.chnl[1], 3, stride=1, padding=1),  # 8->8
+            nn.ConvTranspose2d(self.chnl[0], self.chnl[1], **conv_arg),  # 2/1 -> 5
             nn.ReLU(),
-            nn.ConvTranspose2d(self.chnl[1], self.chnl[2], 4, stride=1, padding=0),  # 8->11
+            nn.ConvTranspose2d(self.chnl[1], self.chnl[2], 3, stride=2, padding=0),  # 5->11
             nn.ReLU(),
-            nn.ConvTranspose2d(self.chnl[2], self.chnl[3], 4, stride=1, padding=0),  # 8->14
+            nn.ConvTranspose2d(self.chnl[2], self.chnl[3], 4, stride=1, padding=0),  # 11->14
             nn.ReLU(),
             nn.ConvTranspose2d(self.chnl[3], 1, 4, stride=2, padding=1),  # 14->28
             nn.Sigmoid()
@@ -63,7 +72,7 @@ class DecoderMnist(nn.Module):
 
     def forward(self, z):
         if len(z.shape) < 3:
-            z = z.reshape(-1, self.chnl[0], 8, 8)
+            z = z.reshape(-1, self.chnl[0], self.z_shape, self.z_shape)
         x_mean = self.p_x_layers(z)
         x_logvar = torch.zeros_like(x_mean)
         return x_mean, x_logvar
@@ -76,8 +85,8 @@ class DecoderMnist(nn.Module):
 
 
 def get_architecture(args):
-    params_enc = {'z_dim': args.z_dim, 'in_ch': args.num_ch}
-    params_dec = {'z_dim': args.z_dim, 'in_ch': args.num_ch}
+    params_enc = {'z_dim': args.z_dim, 'in_ch': args.num_ch, 'long': args.latent_long}
+    params_dec = {'z_dim': args.z_dim, 'in_ch': args.num_ch, 'long': args.latent_long}
 
     if 'mnist' in args.dataset_name:
         if args.model in ['conv', 'vcd']:

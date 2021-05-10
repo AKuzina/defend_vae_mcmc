@@ -135,7 +135,6 @@ class VCD_VAE(StandardVAE):
         log_pz = self.vae.prior.log_prob(z_0)
         neg_log_qz0 = self.q_0.entropy(z_logvar_0)
         loss_1 = lop_pxz + log_pz + neg_log_qz0
-        # loss_1 = - log_qz0
 
         self.log('- log pz0', -log_pz.mean(0).item(), on_step=False,
                  on_epoch=True, prog_bar=False, logger=True)
@@ -241,9 +240,9 @@ class VCD_VAE(StandardVAE):
 
     def configure_optimizers(self):
         optimizers = [
-            optim.Adam(self.vae.encoder.parameters(), lr=self.params.lr),
+            optim.Adam(self.vae.encoder.parameters(), lr=self.params.lr*0.5),
             optim.Adam(chain(self.vae.decoder.parameters(),
-                             self.vae.prior.parameters()), lr=self.params.lr*2)
+                             self.vae.prior.parameters()), lr=self.params.lr)
         ]
 
         schedulers = [

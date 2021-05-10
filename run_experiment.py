@@ -87,7 +87,7 @@ def cli_main(_):
                                           tags=tags,
                                           config=copy.deepcopy(dict(args)),
                                           log_model=True,
-                                          entity="akuzina",
+                                          entity="anna_jakub",
                                           )
 
     trainer = pl.Trainer(gpus=args.gpus,

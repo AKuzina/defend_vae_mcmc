@@ -26,6 +26,8 @@ def get_config(type):
         ### NNs
         # conv (later hierarcy, or other models)'
         model='conv',
+        # if true, use latent code without spacial dimention
+        latent_long=False,
         # number of channel in the first layer of the encoder and decoder (to be doubled twice)
         num_ch=0,
 
