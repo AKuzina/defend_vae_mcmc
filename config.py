@@ -52,14 +52,22 @@ def get_config(type):
         # unsupervised for chain and supervised for attack with target
         type='supervised',
         N_ref=10,
+        eps_norm=1.,
+        # ['kl_forward', 'kl_reverse', 'skl', 'means']
+        # kl_forward = KL(q || q_a)
+        # kl_reverse = KL(q_a || q)
+        # means = ||mu_1 - mu_2||^2
+        loss_type='skl',
+        # ['projection', 'penalty']
+        # projection - make projection after each gradient step
+        # penalty - add regularization to the loss
+        reg_type='projection',
 
-        # for chain
-        N_chains=0,
+        # for unsupervised
         N_adv=0,
 
-        # for attack with target
+        # for attack with target (supervised)
         N_trg=5,
-        eps_reg=0,
     )
 
     default_config = {

@@ -23,6 +23,11 @@ class VCD_VAE(StandardVAE):
         self.Q_t = HMC_sampler(self.target, 5./hparams.z_dim, L=5, adaptive=True)
         self.C = torch.zeros(1)
 
+    def forward(self, x):
+        z_0, z_mean_0, z_logvar_0, z_t = self.encode(batch)
+        x_mean_t, x_logvar_t = self.decode(z_t)
+        return x_mean_t, x_logvar_t, z_0, z_mean_0, z_logvar_0
+
     def encode(self, x):
         z_mean_0, z_logvar_0 = self.vae.encoder(x)
         z_0 = self.vae.reparametrize(z_mean_0, z_logvar_0)

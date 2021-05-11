@@ -11,38 +11,48 @@ def get_jac_enc(x, vae):
     return torch.stack(jac)
 
 
-def get_best_direction(x_init, vae, lr=1e-3, max_iter=1000):
+def get_opt_perturbation(x_init, vae, eps_norm, reg_type='means', loss_type='penalty'):
+    # define loss:
+    loss_fn = {
+        'mean': lambda J, eps: -torch.norm(J @ eps.reshape(x_dim))
+    }[loss_type]
+
+    # initialize
     eps = torch.randn_like(x_init)*0.2
     eps.requires_grad = True
     x_dim = x_init.shape[-1]*x_init.shape[-2]*x_init.shape[-3]
     loss_hist = []
     J = get_jac_enc(x_init, vae)
     J = J.reshape(-1, x_dim)
-    for i in range(max_iter):
-        J_eps = J @ eps.reshape(x_dim)
-        loss = -torch.norm(J_eps) # + torch.norm(eps)
-        grad = torch.autograd.grad(loss, eps, create_graph=True)[0]
-        eps = eps - lr/(i//2+1)*grad
+
+    # learn
+    optimizer = torch.optim.Adam([eps], lr=1e-3)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=False,
+                                                           patience=100, factor=0.5)
+    loss_hist = []
+    for i in range(500):
+        optimizer.zero_grad()
+        loss = loss_fn(J, eps)
+
+        if reg_type == 'penalty':
+            loss = loss + 1./eps_norm * torch.norm(eps)
+        loss.backward()
+        optimizer.step()
         loss_hist.append(loss.item())
-        if torch.norm(grad) < 1e-3:
+        scheduler.step(loss)
+        if reg_type == 'projection':
+            eps.data = eps_norm * (eps.data / torch.norm(eps.data))
+        if optimizer.param_groups[0]['lr'] < 1e-5:
             print('break after {} iterations'.format(len(loss_hist)))
             break
 
-    return loss_hist, eps, eps+x_init
+    return loss_hist, eps.data, eps.data + x_init
 
 
-def generate_chain(N_steps, x_init, vae, step_size=1., lr=10., max_iter=300):
-    x_inits = [x_init]
-
-    for i in tqdm(range(N_steps)):
-        loss_hist, eps, x_opt = get_best_direction(x_inits[i], vae, lr=lr, max_iter=max_iter)
-        eps = eps.cpu() / torch.norm(eps.cpu())
-        x_opt = min_max_scale(x_inits[i] + step_size * eps)
-        x_inits.append(x_opt.detach().cpu())
-        # TODO acceptance test
-
-    return x_inits
-
-
-def min_max_scale(x):
-    return (x - x.min())/(x.max() - x.min())
+def generate_adv(x_init, vae, args, *kwargs):
+    x_adv = []
+    for _ in tqdm(range(args.N_adv)):
+        _, eps, x_opt = get_opt_perturbation(x_init, vae, eps_norm=args.eps_norm,
+                                             reg_type=args.reg_type, loss_type=args.loss_type)
+        x_adv.append(x_opt.detach().cpu())
+    return x_adv

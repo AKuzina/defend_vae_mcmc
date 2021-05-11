@@ -26,11 +26,12 @@ def cli_main(_):
 
     if "absl.logging" in sys.modules:
         import absl.logging
-
         absl.logging.set_verbosity("info")
         absl.logging.set_stderrthreshold("info")
     args = FLAGS.config
     print(args)
+    assert args.attack.loss_type in ['skl', 'kl_forward', 'kl_reverse']
+    assert args.attack.reg_type in ['penalty', 'projection']
 
     # ------------
     # data
@@ -44,23 +45,26 @@ def cli_main(_):
     # load pretrained model
     # ------------
     ids = get_experiments(config=args.model)
-    model = load_model(ids[0]).vae
+    # model = load_model(ids[0]).vae
+    model = load_model(ids[0])
     model.eval()
 
     # ------------
     # wandb
     # ------------
-    os.environ["WANDB_API_KEY"] = ''# WAND API KEY HERE
+    os.environ["WANDB_API_KEY"] = '5532aa3f6f581daa33de08ae6bccd7bbdf271c12'  # WAND API KEY HERE
     tags = [
         args.model.prior,
         args.model.dataset_name,
-        args.attack.type
+        args.attack.type,
+        args.attack.loss_type,
+        args.attack.reg_type
     ]
 
     wandb.init(
-        project="adv_vae",
+        project="vcd_vae",
         tags=tags,
-        entity='' # USER NAME HERE
+        entity='anna_jakub'  # USER NAME HERE
     )
     wandb.config.update(flags.FLAGS)
 
