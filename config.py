@@ -62,6 +62,7 @@ def get_config(type):
         # projection - make projection after each gradient step
         # penalty - add regularization to the loss
         reg_type='projection',
+        hmc_steps=0,
 
         # for unsupervised
         N_adv=0,

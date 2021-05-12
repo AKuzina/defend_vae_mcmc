@@ -245,7 +245,7 @@ class VCD_VAE(StandardVAE):
 
     def configure_optimizers(self):
         optimizers = [
-            optim.Adam(self.vae.encoder.parameters(), lr=self.params.lr*0.5),
+            optim.Adam(self.vae.encoder.parameters(), lr=self.params.lr),
             optim.Adam(chain(self.vae.decoder.parameters(),
                              self.vae.prior.parameters()), lr=self.params.lr)
         ]
@@ -377,9 +377,9 @@ class HMC_sampler:
             # make a step or stay at the same point
             z_curr[accept_flag] = z_proposed[accept_flag]
             # if burn in - adapt step size, else - collect samples
+            prop_accepted = torch.mean(accept_flag.float())
             if i < burn_in:
                 if self.adaptive:
-                    prop_accepted = torch.mean(accept_flag.float())
                     self.eps += 0.01*((prop_accepted - 0.9)/0.9)*self.eps
             else:
                 acceptance_rate.append(prop_accepted)

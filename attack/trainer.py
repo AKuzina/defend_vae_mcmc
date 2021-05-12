@@ -49,62 +49,94 @@ def train_fn(model, x_ref, args, x_trg=None):
         x_adv = attack_fun(all_trg=x_trg, x_init=xi, vae=model.vae, args=args.attack)
         x_hist.append(torch.cat(x_adv))
 
+        # save hist and reconstuctions
         x_hist = torch.cat(x_hist)
         torch.save(x_hist, os.path.join(wandb.run.dir, 'x_hist_{}.pth'.format(step)))
         with torch.no_grad():
-            x_recon, _, _, _, _ = model.forward(x_hist)
             z, z_logvar = model.vae.q_z(x_hist)
+            if args.attack.hmc_steps > 0:
+                from vae.model.vcd import HMC_sampler, VaeTarget
+                target = VaeTarget(model.vae.decoder, model.vae.prior, model.vae.log_lik)
+                Q_t = HMC_sampler(target, 0.025, L=5, adaptive=False)
+                z_t, acc = Q_t.sample(z[1:], x_hist[1:], args.attack.hmc_steps, 0)
+                z_t = torch.cat([z[:1], z_t])
+                x_recon, x_logvar = model.vae.decoder(z_t)
+            else:
+                x_recon, x_logvar, _, _, _ = model.forward(x_hist)
+
         x_recon = x_recon.reshape(x_hist.shape).detach()
         torch.save(x_recon, os.path.join(wandb.run.dir, 'x_recon_{}.pth'.format(step)))
 
-        logs = save_stats(x_hist.detach(), x_recon.detach(), z, z_logvar, x_trg, trg_recon)
+        # compute metrics
+        logs = save_stats(x_hist.detach(), x_recon.detach(), x_logvar.detach(),
+                          z, z_logvar, model.vae, x_trg, trg_recon)
+        if args.attack.hmc_steps > 0:
+            logs['HMC acc.rate'] = torch.stack(acc).mean(0).item()
+            logs['HMC eps'] = Q_t.eps
+        wandb.log(logs)
 
         total_logs['Av_ref_sim'] += logs['Ref similarity']
         total_logs['Av_ref_rec_sim'] += logs['Rec similarity']
         total_logs['Av_omega'] += logs['SKL [q_a | q]']
+        total_logs['Similarity_diff'] = total_logs['Av_ref_sim'] - total_logs['Av_ref_rec_sim']
         if x_trg is not None:
             total_logs['Av_trg_rec_sim'] += logs['Target Rec similarity']
-            total_logs['Similarity_tot'] = total_logs['Av_trg_rec_sim'] + total_logs['Av_ref_sim']
 
         for k in total_logs:
             wandb.run.summary[k] = total_logs[k]/(step+1)
 
 
-def save_stats(x_hist, x_recon, z, z_logvar, trg=None, trg_recon=None):
+def save_stats(x_hist, x_mu, x_logvar, z, z_logvar, vae, trg=None, trg_recon=None):
     MB = x_hist.shape[0]
 
     # similarity with x_ref
-    ref_sim = [msssim(x_hist[:1], torch.clamp(x_hist[i:i + 1], 0, 1), window_size=6,
-                      normalize='relu').data for i in range(1, MB)]
+    ref_sim = [msssim(x_hist[:1], x_a.unsqueeze(0), window_size=6,
+                      normalize='relu').data for x_a in x_hist[1:]]
     # similarity with reconstractions
-    rec_sim = [msssim(x_recon[:1], x_recon[i:i + 1], window_size=6,
-                      normalize='relu').data for i in range(1, MB)]
+    rec_sim = [msssim(x_mu[:1], x_a.unsqueeze(0), window_size=6,
+                      normalize='relu').data for x_a in x_mu[1:]]
     # sKL in latent space
     s_kl = gaus_skl(z[:1], z_logvar[:1], z[1:], z_logvar[1:]).mean()
     mus = (z[:1] - z[1:]).pow(2).sum(1).mean()
 
     # eps norm
-    eps_norms = [torch.norm(x_hist[:1]-x_hist[i:i + 1]) for i in range(1, MB)]
+    eps_norms = [torch.norm(x_hist[:1]-x_a.unsqueeze(0)) for x_a in x_hist[1:]]
+
+    # reconstruction errors (log likelihoods)
+    x_a = x_hist[1:].reshape(MB-1, -1)
+    x_r = x_hist[:1].reshape(1, -1)
+    x_mu_a = x_mu[1:].reshape(MB-1, -1)
+    x_logvar_a = x_logvar[1:].reshape(MB-1, -1)
+    x_mu_r = x_mu[:1].reshape(1, -1)
+    x_logvar_r = x_logvar[:1].reshape(1, -1)
+
+    log_p_xa_zr = vae.reconstruction_error(x_a, x_mu_r, x_logvar_r).mean(0)
+    log_p_xr_zr = vae.reconstruction_error(x_r, x_mu_r, x_logvar_r).mean(0)
+    log_p_xa_za = vae.reconstruction_error(x_a, x_mu_a, x_logvar_a).mean(0)
+    log_p_xr_za = vae.reconstruction_error(x_r, x_mu_a, x_logvar_a).mean(0)
 
     logs = {
         # 'Adversarial Inputs': wandb.Image(batch_min_max_scale(x_hist[1:]), mode='L'),
-        'Adversarial Inputs': wandb.Image(torch.clamp(x_hist[1:], 0, 1), mode='L'),
-        'Adversarial Rec': wandb.Image(x_recon[1:], mode='L'),
+        'Adversarial Inputs': wandb.Image(x_hist[1:], mode='L'),
+        'Adversarial Rec': wandb.Image(x_mu[1:], mode='L'),
         'Ref similarity': np.mean(ref_sim),
         'Rec similarity': np.mean(rec_sim),
         'SKL [q_a | q]': s_kl,
         'Mean dist': mus,
         'Eps norm': np.mean(eps_norms),
+        '-log_p_xa_zr': log_p_xa_zr,
+        '-log_p_xr_zr': log_p_xr_zr,
+        '-log_p_xa_za': log_p_xa_za,
+        '-log_p_xr_za': log_p_xr_za
     }
 
     if trg is not None:
-        trg_rec_sim = [msssim(trg_recon[i-1:i], x_recon[i:i+1], window_size=6,
+        trg_rec_sim = [msssim(trg_recon[i-1:i], x_mu[i:i+1], window_size=6,
                               normalize='relu').data for i in range(1, MB)]
         logs['Target Rec similarity'] = np.mean(trg_rec_sim)
         logs['Target Inputs'] = wandb.Image(trg, mode='L')
         logs['Target Rec'] = wandb.Image(trg_recon, mode='L')
 
-    wandb.log(logs)
     return logs
 
 

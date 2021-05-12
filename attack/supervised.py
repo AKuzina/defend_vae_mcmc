@@ -19,13 +19,15 @@ def get_opt_perturbation(x_init, x_trg, vae, eps_norm=1., reg_type='penalty', lo
     }[loss_type]
 
     # learn
-    optimizer = torch.optim.Adam([eps], lr=0.1)
+    optimizer = torch.optim.Adam([eps], lr=.5)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=False,
-                                                           patience=100, factor=0.5)
+                                                           patience=20, factor=0.5)
     loss_hist = []
-    for i in range(1000):
+    for i in range(2000):
         optimizer.zero_grad()
-        x = x_init + eps
+        x = torch.clamp(x_init + eps, 0, 1)
+        # x = scale(x_init + eps)
+        # x = x_init + eps
         q_m, q_logv = vae.q_z(x)
         loss = loss_fn(q_m, q_logv, z_mean, z_logvar)
         if reg_type == 'penalty':
@@ -37,10 +39,10 @@ def get_opt_perturbation(x_init, x_trg, vae, eps_norm=1., reg_type='penalty', lo
         if reg_type == 'projection':
             if torch.norm(eps.data) > eps_norm:
                 eps.data = eps_norm * (eps.data / torch.norm(eps.data))
-        if optimizer.param_groups[0]['lr'] < 1e-5:
+        if optimizer.param_groups[0]['lr'] < 1e-6:
             print('break after {} iterations'.format(len(loss_hist)))
             break
-    return loss_hist, eps, x_init + eps
+    return loss_hist, eps, torch.clamp(x_init + eps, 0, 1)
 
 
 def generate_adv(all_trg, x_init, vae, args):
@@ -52,6 +54,13 @@ def generate_adv(all_trg, x_init, vae, args):
         x_adv.append(x_opt.detach().cpu())
     return x_adv
 
+
+def scale(x):
+    x_vec = x.reshape(x.shape[0], -1)
+    x_min = x_vec.min(dim=1, keepdim=True)[0]
+    x_max = x_vec.max(dim=1, keepdim=True)[0]
+    res = (x_vec - x_min)/(x_max - x_min)
+    return res.reshape(x.shape)
 
 # def get_lr(optimizer):
 #     for param_group in optimizer.param_groups:
