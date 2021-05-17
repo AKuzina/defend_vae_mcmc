@@ -22,14 +22,21 @@ class Binarize(object):
 
 
 class MNIST(pl.LightningDataModule):
-    def __init__(self, args):
+    def __init__(self, args, binarize=True):
         super().__init__()
         self.root = './datasets'
+        # self.binarize = binarize
 
+        # if self.binarize:
+        #     self.transforms = transforms.Compose([
+        #         transforms.ToTensor(),
+        #         # Binarize()
+        #     ])
+        # else:
         self.transforms = transforms.Compose([
             transforms.ToTensor(),
-            Binarize()
         ])
+
         self.dims = (1, 28, 28)
         self.batch_size = args.batch_size
         self.test_batch_size = args.test_batch_size
@@ -57,8 +64,8 @@ class MNIST(pl.LightningDataModule):
 
 
 class FashionMNIST(MNIST):
-    def __init__(self, args):
-        super().__init__(args)
+    def __init__(self, args, binarize=True):
+        super().__init__(args, binarize=binarize)
 
     def prepare_data(self):
         datasets.FashionMNIST(self.root, train=True, download=True)

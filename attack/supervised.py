@@ -19,15 +19,17 @@ def get_opt_perturbation(x_init, x_trg, vae, eps_norm=1., reg_type='penalty', lo
     }[loss_type]
 
     # learn
-    optimizer = torch.optim.Adam([eps], lr=.5)
+    # optimizer = torch.optim.Adam([eps], lr=.01)
+    optimizer = torch.optim.SGD([eps], lr=.01)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=False,
                                                            patience=20, factor=0.5)
     loss_hist = []
     for i in range(2000):
         optimizer.zero_grad()
-        x = torch.clamp(x_init + eps, 0, 1)
-        # x = scale(x_init + eps)
-        # x = x_init + eps
+        # x = torch.clamp(x_init + eps, 0, 1)
+        x = x_init + eps
+        if reg_type == 'penalty':
+            x = torch.clamp(x, 0, 1)
         q_m, q_logv = vae.q_z(x)
         loss = loss_fn(q_m, q_logv, z_mean, z_logvar)
         if reg_type == 'penalty':
@@ -37,8 +39,8 @@ def get_opt_perturbation(x_init, x_trg, vae, eps_norm=1., reg_type='penalty', lo
         loss_hist.append(loss.item())
         scheduler.step(loss)
         if reg_type == 'projection':
-            if torch.norm(eps.data) > eps_norm:
-                eps.data = eps_norm * (eps.data / torch.norm(eps.data))
+            # if torch.norm(eps.data) > eps_norm:
+            eps.data = eps_norm * (eps.data / torch.norm(eps.data))
         if optimizer.param_groups[0]['lr'] < 1e-6:
             print('break after {} iterations'.format(len(loss_hist)))
             break

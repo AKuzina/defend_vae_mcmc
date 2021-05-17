@@ -4,7 +4,7 @@ import wandb
 import pytorch_lightning as pl
 
 from datasets import load_dataset
-from utils.wandb import get_experiments, load_model
+from utils.wandb import get_experiments, load_model, load_classifier
 from attack import trainer
 
 # args
@@ -36,18 +36,23 @@ def cli_main(_):
     # ------------
     # data
     # ------------
-    data_module, args.model = load_dataset(args.model)
+    data_module, args.model = load_dataset(args.model, binarize=False)
     data_module.setup('test')
     dataloader = data_module.test_dataloader()
-    print(args)
 
     # ------------
     # load pretrained model
     # ------------
     ids = get_experiments(config=args.model)
-    # model = load_model(ids[0]).vae
+    print(ids)
     model = load_model(ids[0])
     model.eval()
+
+    # classifier
+    clf_args = {'model_id': ids[0]}
+    ids = get_experiments(config=clf_args)
+    print(ids)
+    clf_model = load_classifier(ids[0])
 
     # ------------
     # wandb
@@ -69,7 +74,7 @@ def cli_main(_):
     wandb.config.update(flags.FLAGS)
 
     # run attack
-    trainer.train(model, dataloader, args)
+    trainer.train(model, clf_model, dataloader, args)
 
 
 if __name__ == "__main__":

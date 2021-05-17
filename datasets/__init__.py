@@ -1,11 +1,11 @@
 from .mnists import MNIST, FashionMNIST
 
 
-def load_dataset(args):
+def load_dataset(args, binarize=True):
     data_module = {
         'mnist':  MNIST,
         'fashion_mnist': FashionMNIST,
-    }[args.dataset_name](args)
+    }[args.dataset_name](args, binarize=binarize)
 
     img_size = {
         'mnist': [1, 28, 28],

@@ -71,10 +71,17 @@ def get_config(type):
         N_trg=5,
     )
 
+    clf_config = dict(
+        lr=1e-3,
+        max_epoch=100
+    )
+
     default_config = {
         'train': ConfigDict(default_config),
         'attack': ConfigDict({'model': default_config,
                              'attack': ConfigDict(attack_config)}),
+        'clf': ConfigDict({'model': default_config,
+                           'classifier': ConfigDict(clf_config)}),
     }[type]
 
     return default_config

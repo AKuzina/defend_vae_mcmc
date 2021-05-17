@@ -9,24 +9,25 @@ class EncoderMnist(nn.Module):
 
         wn = False
         act = nn.ReLU()
-        ch = [in_ch, in_ch*2, in_ch*4, z_dim//4]
-        conv_arg = {'kernel_size': 3, 'stride': 2, 'padding': 1}
+        ch = [in_ch, in_ch*2, in_ch*3, in_ch*4, z_dim//4]
+        conv_arg = {'kernel_size': 3, 'stride': 1, 'padding': 1}
         if long:
-            ch = [in_ch, in_ch*2, in_ch*2, z_dim]
-            conv_arg = {'kernel_size': 4, 'stride': 1, 'padding': 0}
+            ch = [in_ch, in_ch*2, in_ch*3, in_ch*4, z_dim]
+            conv_arg = {'kernel_size': 3, 'stride': 2, 'padding': 1}
 
         self.q_z_layers = nn.Sequential(
             ConvBlock(1, ch[0], 3, stride=2, padding=1, act=act, weight_norm=wn),  # 28->14
             ConvBlock(ch[0], ch[1], 3, stride=2, padding=1, act=act, weight_norm=wn),  #14->7
             ConvBlock(ch[1], ch[2], 3, stride=2, padding=1, act=act, weight_norm=wn),  #7->4
+            ConvBlock(ch[2], ch[3], 3, stride=2, padding=1, act=act, weight_norm=wn),  #4->2
         )
 
         self.q_z_mean = nn.Sequential(
-            ConvBlock(ch[2], ch[3], act=None, weight_norm=wn,  **conv_arg),  #4->2/1
+            ConvBlock(ch[3], ch[4], act=None, weight_norm=wn,  **conv_arg),  #2->2/1
             nn.Flatten()
         )
         self.q_z_logvar = nn.Sequential(
-            ConvBlock(ch[2], ch[3], act=None, weight_norm=wn,  **conv_arg),  #4->2/1
+            ConvBlock(ch[3], ch[4], act=None, weight_norm=wn,  **conv_arg),  #2->2/1
             nn.Flatten()
         )
         self.init()
@@ -50,22 +51,24 @@ class DecoderMnist(nn.Module):
     def __init__(self, z_dim, in_ch, long=False, **kwargs):
         super(DecoderMnist, self).__init__()
 
-        self.chnl = [z_dim//4, in_ch*4, in_ch*2, in_ch]
+        self.chnl = [z_dim//4, in_ch*4, in_ch*3, in_ch*2, in_ch]
         conv_arg = {'kernel_size': 3, 'stride': 2, 'padding': 0}
         self.z_shape = 2
         if long:
-            self.chnl = [z_dim, in_ch*2, in_ch*2, in_ch]
+            self.chnl = [z_dim, in_ch*4, in_ch*3, in_ch*2, in_ch]
             conv_arg = {'kernel_size': 3, 'stride': 1, 'padding': 0, 'dilation':2}
             self.z_shape = 1
 
         self.p_x_layers = nn.Sequential(
             nn.ConvTranspose2d(self.chnl[0], self.chnl[1], **conv_arg),  # 2/1 -> 5
             nn.ReLU(),
-            nn.ConvTranspose2d(self.chnl[1], self.chnl[2], 3, stride=2, padding=0),  # 5->11
+            nn.ConvTranspose2d(self.chnl[1], self.chnl[2], 3, stride=1, padding=0),  # 5->7
             nn.ReLU(),
-            nn.ConvTranspose2d(self.chnl[2], self.chnl[3], 4, stride=1, padding=0),  # 11->14
+            nn.ConvTranspose2d(self.chnl[2], self.chnl[3], 3, stride=1, padding=1),  # 7->7
             nn.ReLU(),
-            nn.ConvTranspose2d(self.chnl[3], 1, 4, stride=2, padding=1),  # 14->28
+            nn.ConvTranspose2d(self.chnl[3], self.chnl[4], 4, stride=2, padding=1),  # 7->14
+            nn.ReLU(),
+            nn.ConvTranspose2d(self.chnl[4], 1, 4, stride=2, padding=1),  # 14->28
             nn.Sigmoid()
         )
         self.init()

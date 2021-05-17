@@ -1,7 +1,7 @@
 import wandb
 import os
 from ml_collections import ConfigDict
-
+import torch
 from vae.model.vae import StandardVAE
 from datasets import load_dataset
 
@@ -21,9 +21,19 @@ def load_model(idx):
     return vae
 
 
+def load_classifier(idx):
+    # chpt = os.path.join(PROJECT, idx, 'best_clf.pth')
+
+    # load model from wandb
+    best_clf = wandb.restore('best_clf.pth', run_path=os.path.join(USER, PROJECT, idx),
+                               replace=True, root='wandb')
+    model = torch.load(best_clf.name)
+    return model
+
+
 def load_data(idx, mode='test'):
     run = api.run(os.path.join(USER, PROJECT, idx))
-    data_module, _ = load_dataset(ConfigDict(run.config))
+    data_module, _ = load_dataset(ConfigDict(run.config), binarize=False)
     data_module.prepare_data()
     if mode == 'test':
         data_module.setup('test')
@@ -59,3 +69,10 @@ def get_experiments(name=None, config=None):
     return run_list
 
 
+def creat_attack_conf(CONF_model, CONF_attack):
+    conf = {}
+    for k in CONF_attack:
+        conf['config.attack.{}'.format(k)] = CONF_attack[k]
+    for k in CONF_model:
+        conf['config.model.{}'.format(k)] = CONF_model[k]
+    return conf
