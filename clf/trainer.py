@@ -11,11 +11,15 @@ def train(model, train_loader, val_loader, args):
         'mnist': 10,
         'fashion_mnist': 10
     }[args.model.dataset_name]
+    hid_dim = {
+        'mnist': args.model.z_dim*2,
+        'fashion_mnist': args.model.z_dim*4
+    }[args.model.dataset_name]
 
     classifier = nn.Sequential(
-        nn.Linear(args.model.z_dim, args.model.z_dim*2),
+        nn.Linear(args.model.z_dim, hid_dim),
         nn.ReLU(),
-        nn.Linear(args.model.z_dim*2, n_classes),
+        nn.Linear(hid_dim, n_classes),
     )
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(classifier.parameters(), lr=args.classifier.lr)

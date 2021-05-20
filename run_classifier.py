@@ -2,10 +2,10 @@ import os
 import sys
 import wandb
 import pytorch_lightning as pl
-
+import copy
 from datasets import load_dataset
-from utils.wandb import get_experiments, load_model, load_classifier
-from attack import trainer
+from utils.wandb import get_experiments, load_model
+from clf import trainer
 
 # args
 from absl import app
@@ -13,7 +13,7 @@ from absl import flags
 from ml_collections.config_flags import config_flags
 
 FLAGS = flags.FLAGS
-config_flags.DEFINE_config_file("config", default="config.py:attack")
+config_flags.DEFINE_config_file("config", default="config.py:clf")
 
 
 def model_name(args):
@@ -30,29 +30,25 @@ def cli_main(_):
         absl.logging.set_stderrthreshold("info")
     args = FLAGS.config
     print(args)
-    assert args.attack.loss_type in ['skl', 'kl_forward', 'kl_reverse', 'means']
-    assert args.attack.reg_type in ['penalty', 'projection']
 
     # ------------
     # data
     # ------------
     data_module, args.model = load_dataset(args.model, binarize=False)
-    data_module.setup('test')
-    dataloader = data_module.test_dataloader()
+    data_module.setup('fit')
+    train_dataloader = data_module.train_dataloader()
+    val_dataloader = data_module.val_dataloader()
 
     # ------------
     # load pretrained model
     # ------------
     ids = get_experiments(config=args.model)
     print(ids)
+    # model = load_model(ids[0]).vae
     model = load_model(ids[0])
     model.eval()
-
-    # classifier
-    clf_args = {'model_id': ids[0]}
-    ids = get_experiments(config=clf_args)
-    print(ids)
-    clf_model = load_classifier(ids[0])
+    with args.unlocked():
+        args['model_id'] = ids[0]
 
     # ------------
     # wandb
@@ -61,20 +57,18 @@ def cli_main(_):
     tags = [
         args.model.prior,
         args.model.dataset_name,
-        args.attack.type,
-        args.attack.loss_type,
-        args.attack.reg_type
     ]
 
     wandb.init(
         project="vcd_vae",
         tags=tags,
-        entity='anna_jakub'  # USER NAME HERE
+        entity='anna_jakub',  # USER NAME HERE
+        config=copy.deepcopy(dict(args)),
     )
     wandb.config.update(flags.FLAGS)
 
     # run attack
-    trainer.train(model, clf_model, dataloader, args)
+    trainer.train(model, train_dataloader, val_dataloader, args)
 
 
 if __name__ == "__main__":

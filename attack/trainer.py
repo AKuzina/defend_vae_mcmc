@@ -61,13 +61,11 @@ def train_fn(model, clf_model, x_ref, y_ref, args, x_trg=None):
             if args.attack.hmc_steps > 0:
                 from vae.model.vcd import HMC_sampler, VaeTarget
                 target = VaeTarget(model.vae.decoder, model.vae.prior, model.vae.log_lik)
-                Q_t = HMC_sampler(target, 0.02, L=10, adaptive=False)
+                Q_t = HMC_sampler(target, 0.02, L=20, adaptive=False)
                 z_t, acc = Q_t.sample(z_sample[1:], x_hist[1:], args.attack.hmc_steps, 0)
                 z_sample = torch.cat([z_sample[:1], z_t])
-                x_recon, x_logvar = model.vae.decoder(z_sample)
-                z_mu[1:] = z_t
-            else:
-                x_recon, x_logvar, _, _, _ = model.forward(x_hist)
+
+            x_recon, x_logvar = model.vae.decoder(z_sample)
 
         x_recon = x_recon.reshape(x_hist.shape).detach()
         torch.save(x_recon, os.path.join(wandb.run.dir, 'x_recon_{}.pth'.format(step)))
@@ -105,7 +103,7 @@ def save_stats(x_hist, y_ref, x_mu, x_logvar, z, z_mu, z_logvar, vae, clf_model,
                       normalize='relu').data for x_a in x_mu[1:]]
     # sKL in latent space
     s_kl = gaus_skl(z_mu[:1], z_logvar[:1], z_mu[1:], z_logvar[1:]).mean()
-    mus = (z_mu[:1] - z_mu[1:]).pow(2).sum(1).mean()
+    mus = (z[:1] - z[1:]).pow(2).sum(1).mean()
 
     # eps norm
     eps_norms = [torch.norm(x_hist[:1]-x_a.unsqueeze(0)) for x_a in x_hist[1:]]

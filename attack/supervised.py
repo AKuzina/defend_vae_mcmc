@@ -16,24 +16,27 @@ def get_opt_perturbation(x_init, x_trg, vae, eps_norm=1., reg_type='penalty', lo
         'skl': lambda m_a, logv_a, m_t, logv_t: gaus_skl(m_a, logv_a, m_t, logv_t, dim=1),
         'kl_forward': lambda m_a, logv_a, m_t, logv_t: gaus_kl(m_t, logv_t, m_a, logv_a, dim=1),
         'kl_reverse': lambda m_a, logv_a, m_t, logv_t: gaus_kl(m_a, logv_a, m_t, logv_t, dim=1),
+        'means': lambda m_a, logv_a, m_t, logv_t: (m_a - m_t).pow(2).sum(1),
     }[loss_type]
 
     # learn
-    # optimizer = torch.optim.Adam([eps], lr=.01)
     optimizer = torch.optim.SGD([eps], lr=.01)
+
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=False,
                                                            patience=20, factor=0.5)
     loss_hist = []
-    for i in range(2000):
+    for i in range(1000):
+        eps.data = torch.clamp(x_init + eps.data, 0, 1) - x_init
         optimizer.zero_grad()
         # x = torch.clamp(x_init + eps, 0, 1)
         x = x_init + eps
-        if reg_type == 'penalty':
-            x = torch.clamp(x, 0, 1)
+        # if reg_type == 'penalty':
+        #     x = torch.clamp(x, 0, 1)
         q_m, q_logv = vae.q_z(x)
         loss = loss_fn(q_m, q_logv, z_mean, z_logvar)
         if reg_type == 'penalty':
-            loss = loss + 1./eps_norm * torch.norm(eps)
+            # loss = loss + 1./eps_norm * torch.norm(eps)
+            loss = loss + 50 * torch.clamp_min(torch.norm(eps) - eps_norm, 0.)
         loss.backward()
         optimizer.step()
         loss_hist.append(loss.item())
@@ -42,7 +45,7 @@ def get_opt_perturbation(x_init, x_trg, vae, eps_norm=1., reg_type='penalty', lo
             # if torch.norm(eps.data) > eps_norm:
             eps.data = eps_norm * (eps.data / torch.norm(eps.data))
         if optimizer.param_groups[0]['lr'] < 1e-6:
-            print('break after {} iterations'.format(len(loss_hist)))
+            # print('break after {} iterations'.format(len(loss_hist)))
             break
     return loss_hist, eps, torch.clamp(x_init + eps, 0, 1)
 

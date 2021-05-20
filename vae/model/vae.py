@@ -193,14 +193,16 @@ class StandardVAE(pl.LightningModule):
     def validation_epoch_end(self, outputs):
         # samples
         sample = self.vae.generate_x(9)
-        sample = sample.reshape(9, self.params.image_size[0], self.params.image_size[1], -1).detach()
-        self.log('Prior_sample', wandb.Image(sample))
-
+        if len(sample.shape) < 3:
+            sample = sample.reshape(9, self.params.image_size[0],
+                                    self.params.image_size[1], -1)
+        self.log('Prior_sample', wandb.Image(sample.detach()))
         # reconstructions
         plot_rec = self.vae.reconstruct_x(self.x_rec[:9])
-        plot_rec = plot_rec.reshape(9, self.params.image_size[0],
-                                  self.params.image_size[1], -1).detach()
-        self.log('Reconstructions', wandb.Image(plot_rec))
+        if len(plot_rec.shape) < 3:
+            plot_rec = plot_rec.reshape(9, self.params.image_size[0],
+                                        self.params.image_size[1], -1)
+        self.log('Reconstructions', wandb.Image(plot_rec.detach()))
 
         # latent space
         z_mean, _ = self.vae.q_z(self.x_rec)
@@ -233,11 +235,19 @@ class StandardVAE(pl.LightningModule):
             for i in range(len(data)):
                 logger.log({'test_nll_task{}'.format(l): data[i]})
 
+        # bpd
+        size_coef = self.params.image_size[0]*self.params.image_size[1]*self.params.image_size[2]
+        bpd_coeff = 1. / np.log(2.) / size_coef
+        bpd = nll.mean() * bpd_coeff
+        self.log('test_bpd', bpd)
+
         # samples
         N = 100
         sample = self.vae.generate_x(N)
-        sample = sample.reshape(N, self.params.image_size[0], self.params.image_size[1], -1).detach()
-        self.log('Samples', wandb.Image(sample))
+        if len(sample.shape) < 3:
+            sample = sample.reshape(N, self.params.image_size[0],
+                                    self.params.image_size[1], -1)
+        self.log('Samples', wandb.Image(sample.detach()))
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.params.lr)
