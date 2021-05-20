@@ -44,7 +44,7 @@ class StandardNormal(Normal):
 class RealNPV(Prior):
     def __init__(self, hid_dim, N_layers=3):
         super(RealNPV, self).__init__(hid_dim)
-        layers = [AffineCoupling1d(hid_dim, hid_dim, i % 2) for i in range(N_layers)]
+        layers = [AffineCoupling1d(hid_dim, hid_dim*2, i % 2) for i in range(N_layers)]
         self.layers = nn.ModuleList(layers)
         self.prior = StandardNormal(hid_dim)
 

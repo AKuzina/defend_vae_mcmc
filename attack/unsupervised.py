@@ -79,7 +79,6 @@ def get_opt_perturbation(x_init, vae, eps_norm, reg_type='means', loss_type='pen
         if optimizer.param_groups[0]['lr'] < 1e-6:
             # print('break after {} iterations'.format(len(loss_hist)))
             break
-    print(loss_hist[0], loss_hist[-1])
     return loss_hist, eps.data, torch.clamp(x_init + eps.data, 0, 1)
 
 

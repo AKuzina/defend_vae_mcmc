@@ -3,8 +3,8 @@
 # Job requirements:
 #SBATCH -N 1
 #SBATCH -t 0-10:00:00
-##SBATCH -p gpu_titanrtx_shared
-#SBATCH -p gpu_shared
+#SBATCH -p gpu_titanrtx_shared
+##SBATCH -p gpu_shared
 #SBATCH --gres=gpu:1
 #SBATCH -n 4
 module load 2019  #pre2019
@@ -20,12 +20,12 @@ export PYTHONPATH=.
 
 for h in 0
 do
-for b in 1
+for b in 1 2 5 10
 do
-for loss in 'skl' #'means' 'kl_forward' 'kl_reverse'
+for loss in  'kl_reverse' #'means' 'kl_forward' 'kl_reverse' 'skl'
 do
 python run_attack.py \
-            --config.model.dataset_name='mnist'\
+            --config.model.dataset_name='fashion_mnist'\
             --config.model.model='conv'\
             --config.model.prior="standard"\
             --config.model.num_ch=32\
@@ -43,8 +43,8 @@ python run_attack.py \
             --config.model.is_k=1000 \
             --config.model.latent_long=True\
             --config.attack.N_ref=50\
-            --config.attack.eps_norm=4\
-            --config.attack.reg_type='projection'\
+            --config.attack.eps_norm=5\
+            --config.attack.reg_type='penalty'\
             --config.attack.type='supervised'\
             --config.attack.loss_type=$loss\
             --config.attack.N_trg=10\

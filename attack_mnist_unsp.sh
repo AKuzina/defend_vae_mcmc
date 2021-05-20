@@ -19,14 +19,14 @@ dir "$TMPDIR"
 # run python file
 export PYTHONPATH=.
 
-for h in 0
+for h in 45
 do
-for b in 1
+for b in 1 2 5 10
 do
-for loss in  'means' 'kl_reverse' 'kl_forward' 'skl' #
+for loss in  'skl' #means' 'kl_reverse' 'kl_forward' 'skl' #
 do
 python run_attack.py \
-            --config.model.dataset_name='mnist'\
+            --config.model.dataset_name='fashion_mnist'\
             --config.model.model='conv'\
             --config.model.prior="standard"\
             --config.model.num_ch=32\
@@ -44,7 +44,7 @@ python run_attack.py \
             --config.model.is_k=1000 \
             --config.model.latent_long=True\
             --config.attack.N_ref=50\
-            --config.attack.eps_norm=4\
+            --config.attack.eps_norm=5\
             --config.attack.reg_type='projection'\
             --config.attack.type='unsupervised'\
             --config.attack.N_adv=6\
