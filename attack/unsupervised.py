@@ -52,7 +52,6 @@ def get_opt_perturbation(x_init, vae, eps_norm, reg_type='means', loss_type='pen
     with torch.no_grad():
         z_mean, z_logvar = vae.q_z(x_init)
 
-
     # learn
     optimizer = torch.optim.SGD([eps], lr=.001)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=False,
@@ -87,5 +86,5 @@ def generate_adv(x_init, vae, args, **kwargs):
     for _ in tqdm(range(args.N_adv)):
         _, eps, x_opt = get_opt_perturbation(x_init, vae, eps_norm=args.eps_norm,
                                              reg_type=args.reg_type, loss_type=args.loss_type)
-        x_adv.append(x_opt.detach().cpu())
+        x_adv.append(x_opt.detach())
     return x_adv

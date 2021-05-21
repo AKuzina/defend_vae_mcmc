@@ -2,7 +2,7 @@
 
 # Job requirements:
 #SBATCH -N 1
-#SBATCH -t 0-10:00:00
+#SBATCH -t 0-11:00:00
 #SBATCH -p gpu_titanrtx_shared
 ##SBATCH -p gpu_shared
 #SBATCH --gres=gpu:1
@@ -20,36 +20,33 @@ export PYTHONPATH=.
 
 for h in 0
 do
-for b in 1 2 5 10
-do
-for loss in  'kl_reverse' #'means' 'kl_forward' 'kl_reverse' 'skl'
+for loss in  'skl' #'means' 'kl_forward' 'kl_reverse' 'skl'
 do
 python run_attack.py \
-            --config.model.dataset_name='fashion_mnist'\
+       --config.model.dataset_name='celeba'\
             --config.model.model='conv'\
-            --config.model.prior="standard"\
-            --config.model.num_ch=32\
+            --config.model.prior="realnvp"\
+            --config.model.num_ch=64\
             --config.model.iter=0\
-            --config.model.batch_size=256\
+            --config.model.batch_size=1024\
             --config.model.test_batch_size=1024\
-            --config.model.max_epochs=200\
-            --config.model.z_dim=64\
-            --config.model.beta=$b\
+            --config.model.max_epochs=250\
+            --config.model.z_dim=128\
+            --config.model.beta=1\
             --config.model.warmup=0 \
-            --config.model.lr=0.0005\
+            --config.model.lr=0.002\
             --config.model.lr_patience=10\
-            --config.model.lr_factor=0.5\
-            --config.model.likelihood='bernoulli'\
+            --config.model.lr_factor=0.25\
+            --config.model.likelihood='logistic'\
             --config.model.is_k=1000 \
             --config.model.latent_long=True\
-            --config.attack.N_ref=50\
-            --config.attack.eps_norm=5\
-            --config.attack.reg_type='penalty'\
+            --config.attack.N_ref=5\
+            --config.attack.eps_norm=3\
+            --config.attack.reg_type='projection'\
             --config.attack.type='supervised'\
             --config.attack.loss_type=$loss\
-            --config.attack.N_trg=10\
+            --config.attack.N_trg=3\
             --config.attack.hmc_steps=$h
-done
 done
 done
 

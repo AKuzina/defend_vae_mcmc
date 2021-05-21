@@ -5,11 +5,10 @@ from utils.divergence import gaus_skl, gaus_kl
 
 
 def get_opt_perturbation(x_init, x_trg, vae, eps_norm=1., reg_type='penalty', loss_type='skl'):
-
     # encode target
     with torch.no_grad():
         z_mean, z_logvar = vae.q_z(x_trg)
-    eps = nn.Parameter(torch.zeros_like(x_init), requires_grad=True)
+    eps = nn.Parameter(torch.zeros_like(x_init, device='cuda:0'), requires_grad=True)
 
     # define loss:
     loss_fn = {
@@ -36,7 +35,10 @@ def get_opt_perturbation(x_init, x_trg, vae, eps_norm=1., reg_type='penalty', lo
         loss = loss_fn(q_m, q_logv, z_mean, z_logvar)
         if reg_type == 'penalty':
             # loss = loss + 1./eps_norm * torch.norm(eps)
-            loss = loss + 50 * torch.clamp_min(torch.norm(eps) - eps_norm, 0.)
+            lbd = 50
+            if eps.shape[-1] > 28:
+                lbd = 200
+            loss = loss + lbd * torch.clamp_min(torch.norm(eps) - eps_norm, 0.)
         loss.backward()
         optimizer.step()
         loss_hist.append(loss.item())
@@ -56,7 +58,7 @@ def generate_adv(all_trg, x_init, vae, args):
         x_trg = x_trg.unsqueeze(0)
         _, eps, x_opt = get_opt_perturbation(x_init, x_trg, vae, eps_norm=args.eps_norm,
                                              reg_type=args.reg_type, loss_type=args.loss_type)
-        x_adv.append(x_opt.detach().cpu())
+        x_adv.append(x_opt.detach())
     return x_adv
 
 

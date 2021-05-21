@@ -21,13 +21,18 @@ def load_model(idx):
     return vae
 
 
-def load_classifier(idx):
-    # chpt = os.path.join(PROJECT, idx, 'best_clf.pth')
-
+def load_classifier(idx, N=1):
     # load model from wandb
-    best_clf = wandb.restore('best_clf.pth', run_path=os.path.join(USER, PROJECT, idx),
+    model = []
+    if N == 1:
+        best_clf = wandb.restore('best_clf.pth', run_path=os.path.join(USER, PROJECT, idx),
                                replace=True, root='wandb')
-    model = torch.load(best_clf.name)
+        model.append(torch.load(best_clf.name))
+    else:
+        for i in range(N):
+            best_clf = wandb.restore('best_clf_{}.pth'.format(i), run_path=os.path.join(USER, PROJECT, idx),
+                                     replace=True, root='wandb')
+            model.append(torch.load(best_clf.name))
     return model
 
 

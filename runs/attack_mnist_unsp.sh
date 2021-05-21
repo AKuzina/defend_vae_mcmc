@@ -2,7 +2,7 @@
 
 # Job requirements:
 #SBATCH -N 1
-#SBATCH -t 0-10:00:00
+#SBATCH -t 0-11:00:00
 #SBATCH -p gpu_titanrtx_shared
 ##SBATCH -p gpu_shared
 ##SBATCH -p gpu_titanrtx
@@ -19,11 +19,11 @@ dir "$TMPDIR"
 # run python file
 export PYTHONPATH=.
 
-for h in 45
+for h in 0
 do
-for b in 1 2 5 10
+for b in  1
 do
-for loss in  'skl' #means' 'kl_reverse' 'kl_forward' 'skl' #
+for loss in  'kl_reverse' #means' 'kl_reverse' 'kl_forward' 'skl' #
 do
 python run_attack.py \
             --config.model.dataset_name='fashion_mnist'\
@@ -44,7 +44,7 @@ python run_attack.py \
             --config.model.is_k=1000 \
             --config.model.latent_long=True\
             --config.attack.N_ref=50\
-            --config.attack.eps_norm=5\
+            --config.attack.eps_norm=4\
             --config.attack.reg_type='projection'\
             --config.attack.type='unsupervised'\
             --config.attack.N_adv=6\

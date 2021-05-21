@@ -50,9 +50,12 @@ def cli_main(_):
 
     # classifier
     clf_args = {'model_id': ids[0]}
+    N = 1
+    if args.model.dataset_name == 'celeba':
+        N = len(data_module.task_ids)
     ids = get_experiments(config=clf_args)
     print(ids)
-    clf_model = load_classifier(ids[0])
+    clf_model = load_classifier(ids[0], N=N)
 
     # ------------
     # wandb
