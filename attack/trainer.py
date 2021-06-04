@@ -78,7 +78,7 @@ def train_fn(model, clf_model, x_ref, y_ref, args, x_trg=None):
             if args.attack.hmc_steps > 0:
                 from vae.model.vcd import HMC_sampler, VaeTarget
                 target = VaeTarget(model.vae.decoder, model.vae.prior, model.vae.log_lik)
-                Q_t = HMC_sampler(target, 0.02, L=20, adaptive=False)
+                Q_t = HMC_sampler(target, args.attack.hmc_eps, L=20, adaptive=False)
                 z_t, acc = Q_t.sample(z_sample[1:], x_hist[1:], args.attack.hmc_steps, 0)
                 z_sample = torch.cat([z_sample[:1], z_t])
 
@@ -97,7 +97,11 @@ def train_fn(model, clf_model, x_ref, y_ref, args, x_trg=None):
 
         total_logs['Av_ref_sim'] += logs['Ref similarity']
         total_logs['Av_ref_rec_sim'] += logs['Rec similarity']
+        total_logs['Similarity_diff'] = total_logs['Av_ref_sim'] - total_logs['Av_ref_rec_sim']
         total_logs['Av_omega'] += logs['SKL [q_a | q]']
+        if x_trg is not None:
+            total_logs['Av_trg_rec_sim'] += logs['Target Rec similarity']
+            
         if 'ref_acc' in logs.keys():
             total_logs['Av_ref_acc'] += logs['ref_acc']
             total_logs['Av_adv_acc'] += logs['adv_acc']
@@ -106,12 +110,12 @@ def train_fn(model, clf_model, x_ref, y_ref, args, x_trg=None):
                 total_logs['Av_ref_acc_{}'.format(i)] += logs['ref_acc_{}'.format(i)]
                 total_logs['Av_adv_acc_{}'.format(i)] += logs['adv_acc_{}'.format(i)]
 
-        total_logs['Similarity_diff'] = total_logs['Av_ref_sim'] - total_logs['Av_ref_rec_sim']
-        if x_trg is not None:
-            total_logs['Av_trg_rec_sim'] += logs['Target Rec similarity']
-
         for k in total_logs:
             wandb.run.summary[k] = total_logs[k]/(step+1)
+            
+    if 'ref_acc' not in logs.keys():
+        wandb.run.summary['Av_ref_acc'] = np.mean([total_logs['Av_ref_acc_{}'.format(i)]/(step+1) for i in range(len(clf_model))])
+        wandb.run.summary['Av_adv_acc'] = np.mean([total_logs['Av_adv_acc_{}'.format(i)]/(step+1) for i in range(len(clf_model))])
 
 
 def save_stats(x_hist, y_ref, x_mu, x_logvar, z, z_mu, z_logvar, vae, clf_model,

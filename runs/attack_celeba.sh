@@ -1,26 +1,28 @@
 #!/bin/bash
 
-# Job requirements:
-#SBATCH -N 1
-#SBATCH -t 0-11:00:00
-#SBATCH -p gpu_titanrtx_shared
-##SBATCH -p gpu_shared
-#SBATCH --gres=gpu:1
-#SBATCH -n 4
-module load 2019  #pre2019
-module load Python/3.7.5-foss-2019b
-module load Miniconda3
-module load CUDA/10.1.243
+# # Job requirements:
+# #SBATCH -N 1
+# #SBATCH -t 0-11:00:00
+# #SBATCH -p gpu_titanrtx_shared
+# ##SBATCH -p gpu_shared
+# #SBATCH --gres=gpu:1
+# #SBATCH -n 4
+# module load 2019  #pre2019
+# module load Python/3.7.5-foss-2019b
+# module load Miniconda3
+# module load CUDA/10.1.243
 
-source activate ckconv_vae
-cp -R $HOME/VAE/ckconv_vae "$TMPDIR"
-dir "$TMPDIR"
-# run python file
-export PYTHONPATH=.
+# source activate ckconv_vae
+# cp -R $HOME/VAE/ckconv_vae "$TMPDIR"
+# dir "$TMPDIR"
+# # run python file
+# export PYTHONPATH=.
 
-for h in 0
+for h in 40 80
 do
-for loss in  'skl' #'means' 'kl_forward' 'kl_reverse' 'skl'
+# for lbd in 20 25 30 35
+# do
+for eps in 7
 do
 python run_attack.py \
        --config.model.dataset_name='celeba'\
@@ -40,13 +42,15 @@ python run_attack.py \
             --config.model.likelihood='logistic'\
             --config.model.is_k=1000 \
             --config.model.latent_long=True\
-            --config.attack.N_ref=5\
-            --config.attack.eps_norm=3\
+            --config.attack.N_ref=50\
+            --config.attack.N_adv=6\
+            --config.attack.eps_norm=$eps\
             --config.attack.reg_type='projection'\
-            --config.attack.type='supervised'\
-            --config.attack.loss_type=$loss\
-            --config.attack.N_trg=3\
-            --config.attack.hmc_steps=$h
+            --config.attack.use_perp=0.\
+            --config.attack.type='unsupervised'\
+            --config.attack.loss_type='skl'\
+            --config.attack.hmc_steps=$h\
+            --config.attack.hmc_eps=0.04
 done
 done
 

@@ -62,7 +62,13 @@ def get_config(type):
         # projection - make projection after each gradient step
         # penalty - add regularization to the loss
         reg_type='projection',
+        # weight of the penalty (if relevent)
+        lbd=50,
+        # Wheather to use perceptual loss as a regularization
+        use_perp=0.,
+        # For vae + hmc: num steps and step size
         hmc_steps=0,
+        hmc_eps=0.02,
 
         # for unsupervised
         N_adv=0,
@@ -75,13 +81,32 @@ def get_config(type):
         lr=1e-3,
         max_epoch=100
     )
+    
+    nvae_config = dict(
+        chckpt_path='../NVAE/checkpoint/celeba_64.pt',
+        dset_path='../NVAE/datasets/celeba64_lmdb',
+        connect=1,
+        temp=0.8,
+#         n_samples=5,
+#         use_perp=True,
+        lr=5e-3,
+    )
+
 
     default_config = {
         'train': ConfigDict(default_config),
-        'attack': ConfigDict({'model': default_config,
-                             'attack': ConfigDict(attack_config)}),
-        'clf': ConfigDict({'model': default_config,
-                           'classifier': ConfigDict(clf_config)}),
+        'attack': ConfigDict(
+            {'model': default_config,
+             'attack': ConfigDict(attack_config)}),
+        'clf': ConfigDict(
+            {'model': default_config,
+             'classifier': ConfigDict(clf_config)}),
+        'nvae': ConfigDict(
+            {'model': ConfigDict(nvae_config),
+             'attack': ConfigDict(attack_config)}),
+        'clf_nvae': ConfigDict(
+            {'model': ConfigDict(nvae_config),
+             'classifier': ConfigDict(clf_config)})
     }[type]
 
     return default_config

@@ -30,7 +30,7 @@ def reverse_kl(J_mean, J_logvar, z_logvar, eps):
     return 0.5*(kl - z_dim)
 
 
-def get_opt_perturbation(x_init, vae, eps_norm, reg_type='means', loss_type='penalty'):
+def get_opt_perturbation(x_init, vae, eps_norm, reg_type='means', loss_type='penalty', lbd=50):
     # define loss:
     loss_fn = {
         # 'means': lambda J_mean, J_logvar, z_logvar, eps: -torch.norm(J_mean @ eps.reshape(x_dim))**2,
@@ -61,13 +61,13 @@ def get_opt_perturbation(x_init, vae, eps_norm, reg_type='means', loss_type='pen
         eps.data = torch.clamp(x_init + eps.data, 0, 1) - x_init
         optimizer.zero_grad()
         x = x_init + eps
-        if reg_type == 'penalty':
-            x = torch.clamp(x, 0, 1)
+#         if reg_type == 'penalty':
+#             x = torch.clamp(x, 0, 1)
         q_m, q_logv = vae.q_z(x)
         loss = loss_fn(q_m, q_logv, z_mean, z_logvar)
         # loss = loss_fn(J_mean, J_logvar, z_logvar, eps)
         if reg_type == 'penalty':
-            loss = loss + 50*torch.clamp_min(torch.norm(eps) - eps_norm, 0.)
+            loss = loss + lbd*torch.clamp_min(torch.norm(eps) - eps_norm, 0.)
         loss.backward()
         optimizer.step()
         loss_hist.append(loss.item())
@@ -85,6 +85,6 @@ def generate_adv(x_init, vae, args, **kwargs):
     x_adv = []
     for _ in tqdm(range(args.N_adv)):
         _, eps, x_opt = get_opt_perturbation(x_init, vae, eps_norm=args.eps_norm,
-                                             reg_type=args.reg_type, loss_type=args.loss_type)
+                                             reg_type=args.reg_type, loss_type=args.loss_type, lbd=args.lbd)
         x_adv.append(x_opt.detach())
     return x_adv

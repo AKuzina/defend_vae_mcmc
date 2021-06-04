@@ -1,10 +1,12 @@
 import torch
 import torch.nn as nn
+import numpy as np
 from tqdm import tqdm
 from utils.divergence import gaus_skl, gaus_kl
+from attack.nvae.utils import VGGPerceptualLoss
+from vae.model.priors import StandardNormal, RealNPV
 
-
-def get_opt_perturbation(x_init, x_trg, vae, eps_norm=1., reg_type='penalty', loss_type='skl'):
+def get_opt_perturbation(x_init, x_trg, vae, eps_norm=1., reg_type='penalty', loss_type='skl', lbd=1, use_perp=0.):
     # encode target
     with torch.no_grad():
         z_mean, z_logvar = vae.q_z(x_trg)
@@ -19,26 +21,31 @@ def get_opt_perturbation(x_init, x_trg, vae, eps_norm=1., reg_type='penalty', lo
     }[loss_type]
 
     # learn
-    optimizer = torch.optim.SGD([eps], lr=.01)
+    lr = 0.01
+#     if x_init.shape[-1] == 32:
+#         lr = 0.001
+    optimizer = torch.optim.SGD([eps], lr=lr)
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=False,
                                                            patience=20, factor=0.5)
+    perp_loss = VGGPerceptualLoss(x_init)
+    perp_loss.to('cuda')
     loss_hist = []
     for i in range(1000):
         eps.data = torch.clamp(x_init + eps.data, 0, 1) - x_init
         optimizer.zero_grad()
-        # x = torch.clamp(x_init + eps, 0, 1)
         x = x_init + eps
-        # if reg_type == 'penalty':
-        #     x = torch.clamp(x, 0, 1)
         q_m, q_logv = vae.q_z(x)
         loss = loss_fn(q_m, q_logv, z_mean, z_logvar)
+        if isinstance(vae.prior, RealNPV):
+            loss = loss / np.prod(q_m.shape)
+        #/ np.prod(eps.shape)
         if reg_type == 'penalty':
-            # loss = loss + 1./eps_norm * torch.norm(eps)
-            lbd = 50
-            if eps.shape[-1] > 28:
-                lbd = 200
-            loss = loss + lbd * torch.clamp_min(torch.norm(eps) - eps_norm, 0.)
+            pen_term = torch.clamp_min(torch.norm(eps) - eps_norm, 0.) #/ np.prod(eps.shape)
+            loss = loss + lbd * pen_term 
+        if use_perp > 0:
+            pp = perp_loss(x)
+            loss = loss + use_perp*pp
         loss.backward()
         optimizer.step()
         loss_hist.append(loss.item())
@@ -46,8 +53,9 @@ def get_opt_perturbation(x_init, x_trg, vae, eps_norm=1., reg_type='penalty', lo
         if reg_type == 'projection':
             if torch.norm(eps.data) > eps_norm:
                 eps.data = eps_norm * (eps.data / torch.norm(eps.data))
+                
         if optimizer.param_groups[0]['lr'] < 1e-6:
-            # print('break after {} iterations'.format(len(loss_hist)))
+            print('break after {} iterations'.format(len(loss_hist)))
             break
     return loss_hist, eps, torch.clamp(x_init + eps, 0, 1)
 
@@ -57,7 +65,8 @@ def generate_adv(all_trg, x_init, vae, args):
     for x_trg in tqdm(all_trg):
         x_trg = x_trg.unsqueeze(0)
         _, eps, x_opt = get_opt_perturbation(x_init, x_trg, vae, eps_norm=args.eps_norm,
-                                             reg_type=args.reg_type, loss_type=args.loss_type)
+                                             reg_type=args.reg_type, loss_type=args.loss_type, 
+                                             lbd=args.lbd, use_perp=args.use_perp)
         x_adv.append(x_opt.detach())
     return x_adv
 

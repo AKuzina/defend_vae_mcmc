@@ -348,6 +348,9 @@ class HMC_sampler:
                 p_end -= self.eps * self.target.grad_E(z_end, x)
             else:
                 p_end -= 0.5 * self.eps * self.target.grad_E(z_end, x)
+        if len(p_s.shape) > 2:
+            p_s = p_s.reshape(p_s.shape[0], -1)
+            p_end = p_end.reshape(p_s.shape[0], -1)
 
         q_ratio = 0.5 * (torch.sum(p_s ** 2, dim=1) - torch.sum(p_end ** 2, dim=1))
         target_ratio = self.target.E_ratio(z_s, z_end, x)
