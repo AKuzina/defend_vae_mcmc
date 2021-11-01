@@ -21,16 +21,23 @@ def load_model(idx):
     return vae
 
 
-def load_classifier(idx, N=1):
+def load_classifier(model_id, N=1):
+    ids = get_experiments(config={'model_id': model_id})
+
+    for i in ids:
+        run = api.run(os.path.join(USER, PROJECT, i))
+        if 'config.classifier.lr' in run.config.keys():
+            break
     # load model from wandb
     model = []
     if N == 1:
-        best_clf = wandb.restore('best_clf.pth', run_path=os.path.join(USER, PROJECT, idx),
-                               replace=True, root='wandb')
+        best_clf = wandb.restore('best_clf.pth', run_path=os.path.join(USER, PROJECT, i),
+                                 replace=True, root='wandb')
         model.append(torch.load(best_clf.name))
     else:
         for i in range(N):
-            best_clf = wandb.restore('best_clf_{}.pth'.format(i), run_path=os.path.join(USER, PROJECT, idx),
+            best_clf = wandb.restore('best_clf_{}.pth'.format(i),
+                                     run_path=os.path.join(USER, PROJECT, i),
                                      replace=True, root='wandb')
             model.append(torch.load(best_clf.name))
     return model
@@ -74,10 +81,11 @@ def get_experiments(name=None, config=None):
     return run_list
 
 
-def creat_attack_conf(CONF_model, CONF_attack):
+def creat_attack_conf(CONF_model, CONF_attack, CONF_other={}):
     conf = {}
     for k in CONF_attack:
         conf['config.attack.{}'.format(k)] = CONF_attack[k]
     for k in CONF_model:
         conf['config.model.{}'.format(k)] = CONF_model[k]
+    conf.update(CONF_other)
     return conf

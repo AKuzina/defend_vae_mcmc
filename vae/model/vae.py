@@ -3,11 +3,15 @@ import numpy as np
 import torch
 import torch.nn as nn
 import wandb
+import os
 import pytorch_lightning as pl
 
 from utils.distributions import log_Bernoulli, log_Gaus_diag, log_Logistic_256
+from utils.divergence import gaus_skl
 from vae.model.priors import StandardNormal, RealNPV
+from vae.model.hmc import HMC_sampler, VaeTarget
 from vae.utils.architecture import get_architecture
+from thirdparty.pytorch_msssim import msssim
 
 
 class VAE(nn.Module):
@@ -157,7 +161,17 @@ class StandardVAE(pl.LightningModule):
         self.x_rec = None
 
     def forward(self, x):
+        """
+        Returns reconstructions (x_mu, x_logvar) as vector (MB, -1)
+        """
         return self.vae(x)
+
+    def forward_reshaped(self, x):
+        z_q_mean, z_q_logvar = self.vae.q_z(x)
+        z_q = self.vae.reparametrize(z_q_mean, z_q_logvar)
+        x_mean, x_logvar = self.vae.p_x(z_q)
+
+        return x_mean, x_logvar, z_q, z_q_mean, z_q_logvar
 
     def training_step(self, batch, batch_idx):
         beta = self.params.beta
@@ -256,9 +270,143 @@ class StandardVAE(pl.LightningModule):
                                                                patience=self.params.lr_patience)
         return {
             'optimizer': optimizer,
-            'lr_scheduler':{
+            'lr_scheduler': {
                 'scheduler': scheduler,
                 'reduce_on_plateau': True,
                 'monitor': 'val_loss'
             }
         }
+
+    def sample_posterior(self, z_init, x, n_steps, step_size):
+        target = VaeTarget(self.vae.decoder, self.vae.prior, self.vae.log_lik)
+        Q_t = HMC_sampler(target, step_size, L=20, adaptive=True)
+        z_t, acc = Q_t.sample(z_init, x, n_steps, int(0.5*n_steps))
+        logs = {
+            'hmc_acc_rate': torch.stack(acc).mean(0).item(),
+            'hmc_eps': Q_t.eps
+        }
+        return z_t, logs
+
+    def eval_attack(self, x_ref, y_ref, x_adv, step, clf_model, x_trg=None, hmc_steps=0, **kwargs):
+        """
+        x_trg: torch.tensor (N_trg, x_dim)
+        x_ref: torch.tensor (1, x_dim)
+        x_adv: torch.tensor (N_trg, x_dim)
+        """
+        torch.save(x_adv.cpu(), os.path.join(wandb.run.dir, 'x_adv_{}.pth'.format(step)))
+        torch.save(x_ref.cpu(), os.path.join(wandb.run.dir, 'x_ref_{}.pth'.format(step)))
+
+        # get reconstructions
+        logs = {}
+        with torch.no_grad():
+            x_ref_m, x_ref_lv, z_ref, z_ref_m, z_ref_lv = self.forward_reshaped(x_ref)
+            x_adv_m, x_adv_lv, z_adv, z_adv_m, z_adv_lv = self.forward_reshaped(x_adv)
+            adv_dist = (x_adv, x_adv_m, x_adv_lv)
+            zadv_dist = (z_adv, z_adv_m, z_adv_lv)
+        if hmc_steps > 0:
+            # z_ref_t = self.sample_posterior(z_ref, x_ref, hmc_steps, kwargs['hmc_eps'])
+            # x_ref_m_t, x_ref_lv_t = self.vae.p_x(z_ref_t)
+            z_adv_t, hmc_logs = self.sample_posterior(z_adv, x_adv, hmc_steps, kwargs['hmc_eps'])
+            logs.update(hmc_logs)
+            x_adv_m_t, x_adv_lv_t = self.vae.p_x(z_adv_t)
+            adv_dist = (x_adv, x_adv_m_t, x_adv_lv_t)
+            zadv_dist = (z_adv_t, z_adv_m, z_adv_lv)
+
+        ref_logs = self.eval_attack_reference(
+            ref_dist=(x_ref, x_ref_m, x_ref_lv),
+            adv_dist=adv_dist,
+            zref_dist=(z_ref, z_ref_m, z_ref_lv),
+            zadv_dist=zadv_dist
+        )
+        logs.update(ref_logs)
+
+        # Add supervised-only metrics
+        if x_trg is not None:
+            trg_logs = self.eval_attack_target(x_trg, adv_dist[1], step)
+            logs.update(trg_logs)
+
+        # Add classifier accuracy
+        z = z_adv if hmc_steps == 0 else z_adv_t
+        clf_logs = self.eval_attack_classifier(clf_model, z_ref, y_ref, z)
+        logs.update(clf_logs)
+        return logs
+
+    def eval_attack_target(self, x_trg, x_adv_m, step):
+        x_trg_m, _, _, _, _ = self.forward_reshaped(x_trg)
+
+        trg_rec_sim = [msssim(x_trg_m[i:i+1], x_adv_m[i:i+1], 14, normalize='relu').data.cpu()
+                       for i in range(x_trg.shape[0])]
+        logs_trg = {
+            'trg_rec_sim': np.mean(trg_rec_sim)
+        }
+        if step == 0:
+            torch.save(x_trg.cpu(), os.path.join(wandb.run.dir, 'x_trg.pth'.format(step)))
+            torch.save(x_trg_m.cpu(), os.path.join(wandb.run.dir, 'x_trg_rec.pth'.format(step)))
+            logs_trg['Target Inputs'] = wandb.Image(x_trg.cpu())
+            logs_trg['Target Rec'] = wandb.Image(x_trg_m.cpu())
+        return logs_trg
+
+    def eval_attack_reference(self, ref_dist, adv_dist, zref_dist, zadv_dist):
+        x_ref, x_ref_m, x_ref_lv = ref_dist
+        x_adv, x_adv_m, x_adv_lv = adv_dist
+        z_ref, z_ref_m, z_ref_lv = zref_dist
+        z_adv, z_adv_m, z_adv_lv = zadv_dist
+        N_a = x_adv.shape[0]
+
+        # eps norm
+        eps_norms = [torch.norm(x_ref - x_a.unsqueeze(0)).cpu() for x_a in x_adv]
+
+        # msssims
+        ref_sim = [msssim(x_ref, x_a.unsqueeze(0), 14, normalize='relu').data.cpu() for x_a in x_adv]
+        ref_rec_sim = [msssim(x_ref_m, x_a.unsqueeze(0), 14, normalize='relu').data.cpu() for x_a in x_adv_m]
+
+        # latent space
+        s_kl = gaus_skl(z_ref_m, z_ref_lv, z_adv_m, z_adv_lv).mean()
+        mus = (z_ref - z_adv).pow(2).sum(1).mean()
+
+        # log-likelihood
+        get_nll = lambda x, m, lv: self.vae.reconstruction_error(x, m, lv).mean(0)
+        log_p_xa_zr = get_nll(x_adv.reshape(N_a, -1), x_ref_m.reshape(1, -1), x_ref_lv.reshape(1, -1))
+        log_p_xr_zr = get_nll(x_ref.reshape(1, -1), x_ref_m.reshape(1, -1), x_ref_lv.reshape(1, -1))
+        log_p_xa_za = get_nll(x_adv.reshape(N_a, -1), x_adv_m.reshape(N_a, -1), x_adv_lv.reshape(N_a, -1))
+        log_p_xr_za = get_nll(x_ref.reshape(1, -1), x_adv_m.reshape(N_a, -1), x_adv_lv.reshape(N_a, -1))
+
+        logs = {
+            'Adversarial Inputs': wandb.Image(x_adv.cpu()),
+            'Adversarial Rec': wandb.Image(x_adv_m.cpu()),
+
+            'ref_sim': np.mean(ref_sim),
+            'ref_rec_sim': np.mean(ref_rec_sim),
+            'eps_norm': np.mean(eps_norms),
+
+            'omega': s_kl.cpu(),
+            'z_dist': mus.cpu(),
+
+            '-log_p_xa_zr': log_p_xa_zr.cpu(),
+            '-log_p_xr_zr': log_p_xr_zr.cpu(),
+            '-log_p_xa_za': log_p_xa_za.cpu(),
+            '-log_p_xr_za': log_p_xr_za.cpu(),
+        }
+        return logs
+
+    def eval_attack_classifier(self, clf_model, z_ref, y_ref, z_adv):
+        # classifier accuracy
+        logs = {}
+        if isinstance(clf_model, list) and len(clf_model) > 1:
+            for ind, m in enumerate(clf_model):
+                y_ref_pred = m(z_ref).argmax(1)
+                y_adv_pred = m(z_adv).argmax(1)
+                logs['ref_acc_{}'.format(ind)] = sum(y_ref_pred.cpu() == y_ref[ind].cpu())
+                logs['adv_acc_{}'.format(ind)] = sum(y_adv_pred.cpu() == y_ref[ind].cpu())/y_adv_pred.shape[0]
+        else:
+            if not isinstance(clf_model, list):
+                m = clf_model
+            elif len(clf_model) == 1:
+                m = clf_model[0]
+            y_ref_pred = m(z_ref).argmax(1)
+            y_adv_pred = m(z_adv).argmax(1)
+            logs['ref_acc'] = sum(y_ref_pred.cpu() == y_ref.cpu())
+            logs['adv_acc'] = sum(y_adv_pred.cpu() == y_ref.cpu())/y_adv_pred.shape[0]
+        return logs
+
+

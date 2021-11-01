@@ -15,30 +15,30 @@ module load Miniconda3
 module load CUDA/10.1.243
 
 source activate ckconv_vae
-#pip install -e .
-#conda install -c conda-forge python-lmdb
-cp -R $HOME/VAE/vcd_vae "$TMPDIR"
-dir "$TMPDIR"
+#cp -R $HOME/VAE/ckconv_vae "$TMPDIR"
+#dir "$TMPDIR"
  # run python file
-export PYTHONPATH=.
+#export PYTHONPATH=.
 
-for h in 0 10 20 40 80 120
+for h in 20
 do
 for n in 2
 do
 python run_attack_nvae.py \
             --config.model.connect=$n\
-            --config.attack.N_ref=1\
+            --config.model.dset='mnist'\
+            --config.model.temp=0.6\
+            --config.attack.N_ref=2\
             --config.attack.N_trg=5\
-            --config.attack.N_adv=1\
-            --config.attack.reg_type='penalty'\
-            --config.attack.use_perp=0.\
-            --config.attack.lbd=5\
-            --config.attack.eps_norm=4\
+            --config.attack.reg_type='projection'\
+            --config.attack.eps_norm=0.3\
             --config.attack.type='supervised'\
             --config.attack.loss_type='skl'\
             --config.attack.hmc_steps=$h\
-            --config.attack.hmc_eps=1e-6
+            --config.attack.hmc_eps=1e-6\
+            --config.attack.lr=0.2\
+            --config.attack.p='inf'
+
 done
 done
 

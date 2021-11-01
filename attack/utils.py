@@ -22,13 +22,8 @@ class VGGPerceptualLoss(nn.Module):
         self.resize = resize
         self.target_img = target_img
         self.target = None
-        self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1))
-        self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1))
 
     def get_statistics(self, img):
-        # nomalize to [-1, 1]
-        img = (img-self.mean) / self.std
-
         stats = []
         if self.resize:
             img = self.transform(img)
