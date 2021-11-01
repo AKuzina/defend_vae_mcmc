@@ -1,10 +1,11 @@
 import torch
 import torch.nn as nn
 
+
 class AffineCoupling1d(nn.Module):
     def __init__(self, dim, hid_dim, mode=1.):
         """
-        dim (int) - dimnetion of the input data
+        dim (int) - dimention of the input data
         mode - 0 or 1 (from which number the mask starts)
         """
         super(AffineCoupling1d, self).__init__()
@@ -55,7 +56,7 @@ class ResUnit(nn.Module):
     The unit used here is called the full pre-activation.
     '''
     def __init__(self, number_channels, kernel_size=3, stride=1, padding=1, dilation=1, activation=nn.ReLU(True)):
-        super(ResUnitBN, self).__init__()
+        super(ResUnit, self).__init__()
 
         self.activation = activation
         # self.bn1 = nn.BatchNorm2d(number_channels)
