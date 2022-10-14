@@ -30,8 +30,8 @@ We list the required packages in `conda_requirements.yaml`:
 conda env create -f conda_requirements.yaml
 ```
 
-### Weights an d Biases Setup
-We use w&b to track experiments, save and load trained models, thus it is required to run the code. 
+### Weights and Biases Setup
+We use [w&b](https://wandb.ai) to track experiments, save and load trained models, thus it is required to run the code. 
 Variables `USER`, `PROJECT` and `API_KEY` in the `utils/wandb.py` script should be specified before running the experiments.  
 
 ### Train VAE
@@ -71,3 +71,7 @@ If you found this work useful in your research, please consider citing:
   year={2022}
 }
 ```
+### Acknowledgements
+This research was (partially) funded by the Hybrid Intelligence Center, a 10-year programme funded by the Dutch Ministry of Education, Culture and Science through the Netherlands Organisation for Scientific Research, https://hybrid-intelligence-centre.nl.
+
+This work was carried out on the Dutch national infrastructure with the support of SURF Cooperative. 
