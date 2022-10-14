@@ -1,0 +1,26 @@
+name: defend_vae
+channels:
+  - conda-forge
+  - pytorch
+  - anaconda
+  - defaults
+dependencies:
+  - python=3.8.2
+  - numpy
+  - scipy
+  - pandas
+  - pytorch=1.11.0
+  - torchvision
+  - notebook
+  - matplotlib
+  - wandb
+  - scikit-learn
+  - pytorch-lightning=1.2.0
+  - tqdm
+  - imageio
+  - pip=20.3.3
+  - cudatoolkit=11.3
+  - pip:
+      - ml-collections==0.1.0
+      - torchmetrics==0.7.1
+      - torch-fidelity
