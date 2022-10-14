@@ -16,13 +16,9 @@ Variational autoencoders (VAEs) are latent variable models that can generate com
 </i>
 </td>
 <td>
-
 <p align="center">
-<object data="pics/Figure_1_upd.pdf" type="application/pdf" width="100%">
-</object>
+  <img src="pics/Figure_1_upd.png" width="2000">
 </p>
-
-
 </td>
 </tr>
 </table>
