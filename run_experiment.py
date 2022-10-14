@@ -8,6 +8,7 @@ import numpy as np
 
 from datasets import load_dataset
 from vae.model import *
+from utils.wandb import USER, PROJECT, API_KEY
 
 # args
 from absl import app
@@ -38,8 +39,8 @@ def cli_main(_):
 
     if args.model in ['conv']:
         vae = StandardVAE
-    elif args.model in ['vcd']:
-        vae = VCD_VAE
+    elif args.model in ['tc_conv']:
+        vae = TCVAE
     else:
         raise ValueError('Unknown model type')
 
@@ -52,55 +53,41 @@ def cli_main(_):
     # model
     # ------------
     model = vae(args)
+    model.data_module = data_module
 
-    # ------------
-    # training
-    # ------------
-    checkpnts = pl.callbacks.ModelCheckpoint(
-        monitor='val_loss',
-        mode='min',
-        save_last=True,
-    )
-    lr_monitor = pl.callbacks.LearningRateMonitor(logging_interval='epoch')
-
-    early_stop = pl.callbacks.EarlyStopping(
-        monitor='val_loss',
-        patience=int(args.lr_patience*1.5),
-        verbose=True,
-        mode='min',
-        strict=False
-    )
 
     # ------------
     # weight and bias + trainer
     # ------------
-    os.environ["WANDB_API_KEY"] = '5532aa3f6f581daa33de08ae6bccd7bbdf271c12'
+    os.environ["WANDB_API_KEY"] = API_KEY
     if args.debug:
         os.environ["WANDB_MODE"] = "dryrun"
     tags = [
         args.prior,
         args.model,
-        args.dataset_name
+        args.dataset_name,
+        'train_vae'
     ]
 
-    wandb_logger = pl.loggers.WandbLogger(project='vcd_vae',
+    wandb_logger = pl.loggers.WandbLogger(project=PROJECT,
                                           tags=tags,
                                           config=copy.deepcopy(dict(args)),
                                           log_model=True,
-                                          entity="anna_jakub",
+                                          entity=USER,
                                           )
+
+    lr_monitor = pl.callbacks.LearningRateMonitor(logging_interval='epoch')
 
     trainer = pl.Trainer(gpus=args.gpus,
                          max_epochs=args.max_epochs,
-                         callbacks=[early_stop, lr_monitor],
+                         callbacks=[lr_monitor],
                          logger=wandb_logger,
-                         checkpoint_callback=checkpnts  # in newer lightning this goes to callbaks as well
                          )
 
     no_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     wandb_logger.experiment.summary["no_params"] = no_params
     trainer.fit(model, datamodule=data_module)
-
+    trainer.save_checkpoint(os.path.join(wandb.run.dir, f'checkpoints/last.ckpt'))
     # ------------
     # testing
     # ------------

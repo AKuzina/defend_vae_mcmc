@@ -1,11 +1,3 @@
-# Project files
-.idea
-wandb
-ckernel_fitting/wandb
-data/*
-!data/.gitkeep
-
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

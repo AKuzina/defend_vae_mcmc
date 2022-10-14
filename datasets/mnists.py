@@ -25,14 +25,6 @@ class MNIST(pl.LightningDataModule):
     def __init__(self, args, binarize=True):
         super().__init__()
         self.root = './datasets'
-        # self.binarize = binarize
-
-        # if self.binarize:
-        #     self.transforms = transforms.Compose([
-        #         transforms.ToTensor(),
-        #         # Binarize()
-        #     ])
-        # else:
         self.transforms = transforms.Compose([
             transforms.ToTensor(),
         ])
@@ -80,15 +72,6 @@ class FashionMNIST(MNIST):
         if stage == 'test' or stage is None:
             self.test = datasets.FashionMNIST(self.root, train=False,
                                               transform=self.transforms)
-
-    def train_dataloader(self):
-        return DataLoader(self.train, self.batch_size, num_workers=6, shuffle=True)
-
-    def val_dataloader(self):
-        return DataLoader(self.val, self.test_batch_size, num_workers=6, shuffle=False)
-
-    def test_dataloader(self):
-        return DataLoader(self.test, self.test_batch_size, num_workers=6, shuffle=False)
 
 
 

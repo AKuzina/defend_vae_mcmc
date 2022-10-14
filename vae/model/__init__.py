@@ -1,2 +1,2 @@
 from .vae import StandardVAE
-from .vcd import VCD_VAE
+from .tc_vae import TCVAE

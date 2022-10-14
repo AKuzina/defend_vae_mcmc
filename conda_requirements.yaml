@@ -1,24 +1,26 @@
-name: adv_vae
+name: defend_vae
 channels:
-  - pytorch
   - conda-forge
+  - pytorch
   - anaconda
   - defaults
 dependencies:
-  - python=3.7
+  - python=3.8.2
   - numpy
   - scipy
   - pandas
-  - pytorch=1.7.1
-  - torchvision=0.8.2
+  - pytorch=1.11.0
+  - torchvision
   - notebook
   - matplotlib
   - wandb
   - scikit-learn
-  - tqdm
   - pytorch-lightning=1.2.0
-  - tensorboardx
+  - tqdm
+  - imageio
   - pip=20.3.3
-#  - cudatoolkit=10.1
+  - cudatoolkit=11.3
   - pip:
       - ml-collections==0.1.0
+      - torchmetrics==0.7.1
+      - torch-fidelity

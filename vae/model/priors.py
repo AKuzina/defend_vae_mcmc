@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
-import torch.distributions as tdist
+import math
 
-from utils.distributions import log_Gaus_standard, log_Gaus_diag
+from utils.distributions import log_Gaus_diag
 from vae.utils.nn import AffineCoupling1d
 
 
@@ -28,6 +28,12 @@ class Normal(Prior):
     def log_prob(self, z):
         return log_Gaus_diag(z, self.mu, self.log_var, dim=1)
 
+    def log_prob_comp(self, z):
+        log_p = -0.5 * (math.log(2.0*math.pi) +
+                        self.log_var +
+                        torch.pow(z - self.mu, 2) / (torch.exp(self.log_var) + 1e-10))
+        return log_p
+
     def sample_n(self, N):
         z_sample = torch.empty(N, self.hid_dim, device=self.mu.device)
         sigma = (0.5*self.log_var).exp()
@@ -44,7 +50,7 @@ class StandardNormal(Normal):
 class RealNPV(Prior):
     def __init__(self, hid_dim, N_layers=3):
         super(RealNPV, self).__init__(hid_dim)
-        layers = [AffineCoupling1d(hid_dim, hid_dim*2, i % 2) for i in range(N_layers)]
+        layers = [AffineCoupling1d(hid_dim, hid_dim, i % 2) for i in range(N_layers)]
         self.layers = nn.ModuleList(layers)
         self.prior = StandardNormal(hid_dim)
 

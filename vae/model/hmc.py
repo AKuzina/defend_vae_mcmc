@@ -1,12 +1,7 @@
 import math
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.optim as optim
-import wandb
 from tqdm import tqdm
-import pytorch_lightning as pl
-from itertools import chain
 
 
 class VaeTarget:
@@ -46,7 +41,7 @@ class VaeTarget:
             f = True
             torch.set_grad_enabled(True)
         z = z.clone().requires_grad_()
-        assert z.grad == None
+        assert z.grad is None
         E = self.E(z, x)
         E.sum().backward()
         if f:
@@ -126,8 +121,6 @@ class HMC_sampler:
         chain = [z_0]
         acceptance_rate = []
         if self.N_vars > 1:
-            print(len(z_0))
-            print(z_0[0].shape)
             z_curr = [z.clone() for z in z_0]
             MB = z_0[0].shape[0]
         else:
@@ -143,13 +136,14 @@ class HMC_sampler:
 
             # make a step or stay at the same point
             if self.N_vars > 1:
-                for i in range(self.N_vars):
-                    z_curr[i][accept_flag] = z_proposed[i][accept_flag]
+                for j in range(self.N_vars):
+                    z_curr[j][accept_flag] = z_proposed[j][accept_flag]
             else:
                 z_curr[accept_flag] = z_proposed[accept_flag]
             # if burn in - adapt step size, else - collect samples
             prop_accepted = torch.mean(accept_flag.float())
             # if i < burn_in:
+
             if self.adaptive:
                 self.eps += 0.01*((prop_accepted - 0.9)/0.9)*self.eps
             if i >= burn_in:

@@ -5,8 +5,9 @@ import pytorch_lightning as pl
 import copy
 
 from datasets import load_dataset
-from utils.wandb import get_experiments, load_model, load_classifier, creat_attack_conf
+from utils.wandb import get_experiments, load_model, creat_attack_conf
 from attack import trainer
+from utils.wandb import USER, PROJECT, API_KEY
 
 # args
 from absl import app
@@ -31,25 +32,18 @@ def cli_main(_):
         absl.logging.set_stderrthreshold("info")
     args = FLAGS.config
     print(args)
-    assert args.attack.loss_type in ['skl', 'kl_forward', 'kl_reverse', 'means']
-    assert args.attack.reg_type in ['penalty', 'projection']
+    assert args.attack.loss_type in ['skl', 'kl_forward', 'kl_reverse', 'means', 'clf']
 
     # ------------
     # load pretrained model
     # ------------
     model_req = {k: v for k, v in dict(args.model).items() if v is not None}
     ids = get_experiments(config=model_req)
-    print(ids)
     model = load_model(ids[0])
     model.eval()
     with args.unlocked():
         args['model_id'] = ids[0]
 
-    # classifier
-    N = 1
-    if args.model.dataset_name == 'celeba':
-        N = len(data_module.task_ids)
-    clf_model = load_classifier(args['model_id'], N=N)
 
     # load attacks, if already trained
     CONF_attack = dict(args.attack)
@@ -80,26 +74,25 @@ def cli_main(_):
     # ------------
     # wandb
     # ------------
-    os.environ["WANDB_API_KEY"] = '5532aa3f6f581daa33de08ae6bccd7bbdf271c12'  # WAND API KEY HERE
+    os.environ["WANDB_API_KEY"] = API_KEY
     tags = [
         args.mode,
         args.model.prior,
         args.model.dataset_name,
         args.attack.type,
-        args.attack.loss_type,
-        args.attack.reg_type
+        args.attack.loss_type
     ]
 
     wandb.init(
-        project="vcd_vae",
+        project=PROJECT,
         tags=tags,
-        entity='anna_jakub',  # USER NAME HERE\
+        entity=USER,
         config=copy.deepcopy(dict(args))
     )
     wandb.config.update(flags.FLAGS)
 
     # run attack
-    trainer.train(model, clf_model, dataloader, args)
+    trainer.train(model, dataloader, args)
 
 
 if __name__ == "__main__":

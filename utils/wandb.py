@@ -1,47 +1,22 @@
 import wandb
 import os
 from ml_collections import ConfigDict
-import torch
 from vae.model.vae import StandardVAE
 from datasets import load_dataset
 
-USER = 'anna_jakub'# wandb user name (will be used to download pre-train models)
-PROJECT = 'vcd_vae'
+USER = ''  # wandb user name
+PROJECT = ''  # wandb project name
+API_KEY = ''  # wandb api key (required to login)
 api = wandb.Api()
 
 
 def load_model(idx):
-    chpt = os.path.join(PROJECT, idx, 'checkpoints/last.ckpt')
-
-    # load model from wandb
-    best_model = wandb.restore(chpt, run_path=os.path.join(USER, PROJECT, idx),
+    best_model = wandb.restore('checkpoints/last.ckpt',
+                               run_path=os.path.join(USER, PROJECT, idx),
                                replace=True, root='wandb')
-    # load model from the saved chackpoint
+    # load model from the saved checkpoint
     vae = StandardVAE.load_from_checkpoint(checkpoint_path=best_model.name)
     return vae
-
-
-def load_classifier(model_id, N=1):
-    ids = get_experiments(config={'model_id': model_id})
-
-    for i in ids:
-        run = api.run(os.path.join(USER, PROJECT, i))
-        if 'config.classifier.lr' in run.config.keys():
-            break
-    # load model from wandb
-    model = []
-    if N == 1:
-        best_clf = wandb.restore('best_clf.pth', run_path=os.path.join(USER, PROJECT, i),
-                                 replace=True, root='wandb')
-        model.append(torch.load(best_clf.name))
-    else:
-        for i in range(N):
-            best_clf = wandb.restore('best_clf_{}.pth'.format(i),
-                                     run_path=os.path.join(USER, PROJECT, i),
-                                     replace=True, root='wandb')
-            model.append(torch.load(best_clf.name))
-    return model
-
 
 def load_data(idx, mode='test'):
     run = api.run(os.path.join(USER, PROJECT, idx))
@@ -77,7 +52,7 @@ def get_experiments(name=None, config=None):
         if check_run(run, name, config):
             run_list.append(run.id)
     if len(run_list) != 1:
-        print("Found %i" % len(run_list))
+        print(f"Found {len(run_list)} runs")
     return run_list
 
 
