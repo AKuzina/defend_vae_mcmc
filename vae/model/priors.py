@@ -77,10 +77,7 @@ class RealNPV(Prior):
         return x
 
     def log_prob(self, z):
-        # print(z.shape)x
         z, log_det = self.forward(z)
-        # print(z.shape, log_det.shape)
-        # print()
         log_px = self.prior.log_prob(z) + log_det
         return log_px
 

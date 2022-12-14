@@ -140,9 +140,7 @@ class HMC_sampler:
                     z_curr[j][accept_flag] = z_proposed[j][accept_flag]
             else:
                 z_curr[accept_flag] = z_proposed[accept_flag]
-            # if burn in - adapt step size, else - collect samples
             prop_accepted = torch.mean(accept_flag.float())
-            # if i < burn_in:
 
             if self.adaptive:
                 self.eps += 0.01*((prop_accepted - 0.9)/0.9)*self.eps

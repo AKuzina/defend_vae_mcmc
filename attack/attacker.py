@@ -67,8 +67,6 @@ class AttackVAE:
         if self.type == 'unsupervised':
             eps.data += torch.randn_like(eps) * 0.2
             max_iter = 50
-            # if self.hmc_steps > 0:
-            #     max_iter = 50
         else:
             max_iter = 500
         optimizer = torch.optim.SGD([eps], lr=self.lr)
@@ -81,8 +79,6 @@ class AttackVAE:
             x = x_ref + eps
             loss = self.compute_loss(x, z_info, task)
             loss.backward()
-            # print()
-            # print(eps.grad)
             optimizer.step()
             scheduler.step(loss)
             if i == 0:
